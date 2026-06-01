@@ -34,12 +34,14 @@ def serialize_vector(vector: list[float] | None) -> str | None:
 def normalize_metadata(metadata: Any) -> dict[str, Any]:
     if isinstance(metadata, dict):
         return metadata
+
     if isinstance(metadata, str):
         try:
             parsed = json.loads(metadata)
         except json.JSONDecodeError:
             return {}
         return parsed if isinstance(parsed, dict) else {}
+
     return {}
 
 
@@ -104,6 +106,7 @@ class DocumentRepository:
     ) -> None:
         if not chunks:
             return
+
         if len(chunks) != len(embeddings):
             raise ValueError("chunks and embeddings must have the same length")
 
@@ -162,13 +165,16 @@ class DocumentRepository:
                 metadata={"source": file_name, "tenant_id": tenant_id},
                 tenant_id=tenant_id,
             )
+
             await self.create_chunks(
                 document_id=document_id,
                 tenant_id=tenant_id,
                 chunks=chunks,
                 embeddings=embeddings,
             )
+
             await self.session.commit()
+
         except Exception:
             await self.session.rollback()
             raise
@@ -187,6 +193,16 @@ class DocumentRepository:
         score_threshold: float | None = None,
         metadata_filters: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
+        normalized_score_threshold = (
+            None if score_threshold is None else float(score_threshold)
+        )
+
+        serialized_metadata_filters = (
+            json.dumps(metadata_filters)
+            if metadata_filters
+            else None
+        )
+
         result = await self.session.execute(
             text(
                 """
@@ -205,11 +221,11 @@ class DocumentRepository:
                     AND dc.tenant_id = :tenant_id
                     AND sd.tenant_id = :tenant_id
                     AND (
-                        :score_threshold IS NULL
-                        OR 1 - (dc.embedding <=> CAST(:embedding AS vector)) >= :score_threshold
+                        CAST(:score_threshold AS DOUBLE PRECISION) IS NULL
+                        OR 1 - (dc.embedding <=> CAST(:embedding AS vector)) >= CAST(:score_threshold AS DOUBLE PRECISION)
                     )
                     AND (
-                        :metadata_filters IS NULL
+                        CAST(:metadata_filters AS jsonb) IS NULL
                         OR dc.metadata @> CAST(:metadata_filters AS jsonb)
                     )
                 ORDER BY dc.embedding <=> CAST(:embedding AS vector)
@@ -219,16 +235,14 @@ class DocumentRepository:
             {
                 "tenant_id": tenant_id,
                 "embedding": serialize_vector(embedding),
-                "limit": limit,
-                "score_threshold": score_threshold,
-                "metadata_filters": (
-                    json.dumps(metadata_filters)
-                    if metadata_filters
-                    else None
-                ),
+                "limit": int(limit),
+                "score_threshold": normalized_score_threshold,
+                "metadata_filters": serialized_metadata_filters,
             },
         )
+
         rows = result.mappings().all()
+
         return [
             SearchResult(
                 chunk_id=row["chunk_id"],
