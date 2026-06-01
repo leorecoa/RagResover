@@ -103,6 +103,21 @@ Frontend: http://localhost:3000
 API docs: http://localhost:8000/docs
 ```
 
+## Demo
+
+Run the complete local demo flow after the stack is up:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/demo_flow.ps1
+```
+
+The demo generates local PDF/DOCX fixtures under `.demo/`, uploads them with
+`X-Tenant-ID`, runs search/chat, prints source metadata and retrieval
+diagnostics when `DEBUG=true`, and validates that one tenant cannot retrieve
+another tenant's documents.
+
+Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
+
 ## API
 
 | Method | Path | Purpose |
