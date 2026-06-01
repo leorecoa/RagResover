@@ -26,13 +26,14 @@
 - [x] Fixar versoes diretas em `requirements.txt`
 - [x] Criar workflow de CI e script local de validacao
 - [x] Criar suite inicial de testes automatizados sem depender de Docker/provedores externos
+- [x] Criar migrations iniciais com Alembic e servico Docker de migracao
 
 ## Proximas tarefas
 
 - [ ] Adicionar reranking opcional com Cohere
 - [ ] Adicionar parsers reais para PDF, DOCX e HTML
 - [ ] Ampliar cobertura de testes com casos de integracao e banco real
-- [ ] Criar migrations com Alembic
+- [ ] Endurecer workflow de migrations com testes de banco real e downgrade smoke test
 - [ ] Evoluir frontend para Next.js/React se precisar de estado mais complexo
 - [ ] Adicionar autenticacao e separacao por usuario/tenant
 - [ ] Adicionar observabilidade mais completa

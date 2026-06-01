@@ -33,6 +33,9 @@ app/db
 
 app/core
   Config, app factory, logging, constants, lifespan.
+
+migrations
+  Alembic migration environment and versioned schema changes.
 ```
 
 ## Ingestion Flow
@@ -69,12 +72,14 @@ POST /chat
 
 ## Data Model
 
-Primary tables:
+Primary tables are managed through Alembic migrations:
 
 - `source_documents`: one row per uploaded file.
 - `document_chunks`: one row per chunk with optional vector embedding.
 - `conversations`: reserved for future chat history.
 - `messages`: reserved for future chat messages.
+
+`scripts/init_db.sql` only bootstraps PostgreSQL extensions and schema search path for local Docker startup.
 
 ## Provider Strategy
 
@@ -95,5 +100,4 @@ EMBEDDING_PROVIDER=ollama
 - Upload reads the whole file into memory.
 - Text extraction is UTF-8 only.
 - No PDF/DOCX parser yet.
-- No Alembic migrations yet.
 - No authentication or tenant isolation yet.

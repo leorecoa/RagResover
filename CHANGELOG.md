@@ -11,3 +11,4 @@ All notable changes to RagResover should be documented in this file.
 - Static frontend for upload, semantic search, and RAG chat demos.
 - Docker Compose stack for local development.
 - Repository documentation, security policy, CI, and local check script.
+- Initial Alembic migration environment for versioned database schema management.
