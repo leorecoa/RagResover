@@ -42,5 +42,10 @@ jobs:
           node --check frontend/app.js
           node --check frontend/server.js
 
+      - name: Check PowerShell scripts
+        shell: pwsh
+        run: |
+          [void][scriptblock]::Create((Get-Content scripts/demo_flow.ps1 -Raw))
+
       - name: Check Docker Compose config
         run: docker compose config --quiet

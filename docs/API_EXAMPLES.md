@@ -122,3 +122,45 @@ $headers = @{
   "Authorization" = "Bearer your-token"
 }
 ```
+
+## Demo Flow
+
+For an end-to-end product demo, start the stack and run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/demo_flow.ps1
+```
+
+The script creates local PDF/DOCX fixtures in `.demo/`, uploads them with
+`X-Tenant-ID: tenant-demo`, runs search/chat, prints source metadata, and checks
+tenant isolation against `tenant-other`.
+
+If `API_AUTH_TOKEN` is configured:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/demo_flow.ps1 -ApiToken your-token
+```
+
+## Tenant Isolation Check
+
+Search from `tenant-demo` for a file uploaded by `tenant-other`:
+
+```powershell
+$body = @{
+  query = "other tenant quarterly revenue target"
+  top_k = 3
+  score_threshold = -1.0
+  metadata_filters = @{
+    source = "tenant-other-secret.txt"
+  }
+} | ConvertTo-Json -Depth 6
+
+Invoke-RestMethod http://localhost:8000/search `
+  -Method Post `
+  -Body $body `
+  -ContentType "application/json" `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Expected result: an empty `results` array. Use the same body with
+`X-Tenant-ID: tenant-other` to confirm the owning tenant can retrieve it.

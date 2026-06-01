@@ -26,6 +26,9 @@ Write-Host "Checking frontend JavaScript..."
 node --check frontend\app.js
 node --check frontend\server.js
 
+Write-Host "Checking PowerShell scripts..."
+[void][scriptblock]::Create((Get-Content scripts\demo_flow.ps1 -Raw))
+
 Write-Host "Checking Docker Compose config..."
 $previousDockerConfig = $env:DOCKER_CONFIG
 $localDockerConfig = Join-Path $PWD ".docker-check"
