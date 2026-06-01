@@ -44,11 +44,13 @@ migrations
 POST /upload
   -> validate file
   -> upload raw file to MinIO
-  -> decode text
+  -> parse text, PDF, or DOCX content
   -> split into chunks
   -> generate embeddings
   -> persist source document and chunks in Postgres
 ```
+
+PDF parsing preserves page metadata when text is extractable. DOCX parsing preserves paragraph metadata and section headings when available.
 
 ## Retrieval Flow
 
@@ -98,6 +100,6 @@ EMBEDDING_PROVIDER=ollama
 ## Current Constraints
 
 - Upload reads the whole file into memory.
-- Text extraction is UTF-8 only.
-- No PDF/DOCX parser yet.
+- Scanned PDFs without embedded text are not OCR-processed yet.
+- HTML parsing is not implemented yet.
 - No authentication or tenant isolation yet.

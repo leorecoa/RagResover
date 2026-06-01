@@ -16,7 +16,7 @@ RagResover is currently a strong technical MVP: it runs locally, indexes documen
 
 - Authentication and account management.
 - Tenant isolation so each customer sees only their own documents.
-- PDF, DOCX, and HTML extraction.
+- HTML extraction and OCR for scanned PDFs.
 - Automated tests for ingestion, retrieval, chat, and API errors.
 - Migration system with Alembic.
 - Admin controls for documents, usage, and logs.

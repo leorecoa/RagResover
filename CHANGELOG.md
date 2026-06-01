@@ -12,3 +12,4 @@ All notable changes to RagResover should be documented in this file.
 - Docker Compose stack for local development.
 - Repository documentation, security policy, CI, and local check script.
 - Initial Alembic migration environment for versioned database schema management.
+- PDF and DOCX parsing with useful source metadata for RAG chunks.

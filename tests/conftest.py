@@ -1,5 +1,6 @@
 import logging
 import warnings
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,7 +23,11 @@ async def override_db_session():
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
+    storage_service = AsyncMock()
+    storage_service.ensure_bucket_exists.return_value = None
+    monkeypatch.setattr("app.core.lifespan.storage_service", storage_service)
+
     application = create_app()
     yield application
     application.dependency_overrides.clear()

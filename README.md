@@ -17,7 +17,6 @@
 ![Semantic Search](https://img.shields.io/badge/Semantic_Search-pgvector-informational?style=flat-square)
 ![Status](https://img.shields.io/badge/Status-MVP_in_progress-yellow?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
-```
 
 RagResover is a local-first Retrieval-Augmented Generation platform for indexing private documents and asking questions over them with cited sources.
 
@@ -26,6 +25,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 ## Highlights
 
 - Document upload with validation and raw-file storage in MinIO
+- Text extraction for TXT, Markdown, JSON, PDF, and DOCX
 - Text chunking with LangChain text splitters
 - Vector persistence in PostgreSQL with pgvector
 - Semantic search over indexed chunks
@@ -57,6 +57,14 @@ app/
 ```
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+Supported upload content types:
+
+- `text/plain`
+- `text/markdown`
+- `application/json`
+- `application/pdf`
+- `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
 
 ## Quick Start
 
