@@ -9,6 +9,7 @@ from app.db.session import get_db_session
 from app.repositories.documents import DocumentRepository
 from app.services.embeddings import embedding_service
 from app.services.ingestion import ingestion_service
+from app.services.parsing import DocumentParsingError, UnsupportedDocumentTypeError
 
 logger = logging.getLogger("rag_resover")
 router = APIRouter(tags=["Ingestion"])
@@ -79,6 +80,10 @@ async def upload_document(
         }
     except HTTPException:
         raise
+    except UnsupportedDocumentTypeError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
+    except DocumentParsingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         logger.exception("Erro ao processar upload %s", file_name)
         raise HTTPException(

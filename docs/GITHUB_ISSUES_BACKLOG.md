@@ -45,24 +45,25 @@ Add authentication and data isolation so each user or organization can only acce
 - Search and chat cannot return documents from another tenant.
 - Tests cover access boundaries.
 
-## 3. Add PDF And DOCX Parsing
+## 3. Expand Document Parsing
 
 Labels: `ingestion`, `rag-quality`, `feature`
 
 ### Summary
 
-Support real-world business documents beyond plain text, Markdown, and JSON.
+Support more real-world business documents beyond the current text, Markdown, JSON, PDF, and DOCX parsers.
 
 ### Scope
 
-- Add PDF text extraction.
-- Add DOCX text extraction.
+- Add HTML text extraction.
+- Add OCR strategy for scanned PDFs.
 - Preserve useful metadata when possible, such as page number or section.
 - Return clear errors for unsupported or unreadable files.
 
 ### Acceptance Criteria
 
-- Users can upload PDF and DOCX files.
+- Users can upload HTML documents.
+- Scanned PDFs produce clear OCR-related guidance or are processed by OCR.
 - Extracted text is chunked and indexed.
 - Search and chat source references include useful document metadata.
 

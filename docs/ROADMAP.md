@@ -9,9 +9,8 @@
 
 ## Document Processing
 
-- Add PDF parser.
-- Add DOCX parser.
 - Add HTML parser.
+- Add OCR for scanned PDFs.
 - Preserve metadata such as page number and section title.
 - Add chunk deduplication.
 

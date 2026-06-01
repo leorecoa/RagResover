@@ -25,6 +25,20 @@ curl.exe -X POST http://localhost:8000/upload `
   -F "file=@README.md;type=text/markdown"
 ```
 
+PDF:
+
+```powershell
+curl.exe -X POST http://localhost:8000/upload `
+  -F "file=@manual.pdf;type=application/pdf"
+```
+
+DOCX:
+
+```powershell
+curl.exe -X POST http://localhost:8000/upload `
+  -F "file=@manual.docx;type=application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+```
+
 Example response:
 
 ```json

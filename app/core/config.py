@@ -44,7 +44,10 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = 50
     VECTOR_SEARCH_TOP_K: int = 5
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
-    ALLOWED_UPLOAD_CONTENT_TYPES: str = "text/plain,text/markdown,application/json"
+    ALLOWED_UPLOAD_CONTENT_TYPES: str = (
+        "text/plain,text/markdown,application/json,application/pdf,"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
 
     COHERE_API_KEY: Optional[SecretStr] = None
 

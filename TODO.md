@@ -27,11 +27,12 @@
 - [x] Criar workflow de CI e script local de validacao
 - [x] Criar suite inicial de testes automatizados com pytest sem depender de Docker/provedores externos
 - [x] Criar migrations iniciais com Alembic e servico Docker de migracao
+- [x] Adicionar parsers reais para PDF e DOCX com metadados de pagina/secao
 
 ## Proximas tarefas
 
 - [ ] Adicionar reranking opcional com Cohere
-- [ ] Adicionar parsers reais para PDF, DOCX e HTML
+- [ ] Adicionar parser HTML e OCR para PDFs escaneados
 - [ ] Ampliar cobertura de testes com casos de integracao e banco real
 - [ ] Endurecer workflow de migrations com testes de banco real e downgrade smoke test
 - [ ] Evoluir frontend para Next.js/React se precisar de estado mais complexo
