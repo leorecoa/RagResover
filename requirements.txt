@@ -8,6 +8,7 @@ langchain-text-splitters==1.1.2
 minio==7.2.20
 openai==2.38.0
 pydantic-settings==2.14.1
+pytest==9.0.3
 python-multipart==0.0.29
 sqlalchemy==2.0.50
 uvicorn[standard]==0.48.0

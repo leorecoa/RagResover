@@ -1,13 +1,13 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "Checking Python syntax..."
-venv\Scripts\python.exe -m compileall -q app migrations main.py config.py ingestion_service.py storage_service.py
+venv\Scripts\python.exe -m compileall -q app migrations tests main.py config.py ingestion_service.py storage_service.py
 
 Write-Host "Checking FastAPI app import..."
 venv\Scripts\python.exe -c "from app.core.app import create_app; create_app()"
 
 Write-Host "Running backend tests..."
-venv\Scripts\python.exe -m unittest discover -s tests
+venv\Scripts\python.exe -m pytest tests
 
 Write-Host "Checking Alembic offline migration SQL..."
 $previousErrorActionPreference = $ErrorActionPreference

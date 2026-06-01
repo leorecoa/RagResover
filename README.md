@@ -108,7 +108,7 @@ powershell -ExecutionPolicy Bypass -File scripts/check.ps1
 Run only backend tests:
 
 ```powershell
-venv\Scripts\python.exe -m unittest discover -s tests
+venv\Scripts\python.exe -m pytest tests
 ```
 
 Run database migrations:
