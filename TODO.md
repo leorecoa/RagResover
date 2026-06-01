@@ -25,12 +25,13 @@
 - [x] Criar documentacao inicial para arquitetura, API, seguranca, deploy e prontidao comercial
 - [x] Fixar versoes diretas em `requirements.txt`
 - [x] Criar workflow de CI e script local de validacao
+- [x] Criar suite inicial de testes automatizados sem depender de Docker/provedores externos
 
 ## Proximas tarefas
 
 - [ ] Adicionar reranking opcional com Cohere
 - [ ] Adicionar parsers reais para PDF, DOCX e HTML
-- [ ] Adicionar testes automatizados
+- [ ] Ampliar cobertura de testes com casos de integracao e banco real
 - [ ] Criar migrations com Alembic
 - [ ] Evoluir frontend para Next.js/React se precisar de estado mais complexo
 - [ ] Adicionar autenticacao e separacao por usuario/tenant

@@ -14,6 +14,7 @@ frontend/.next/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.docker-check/
 *.log
 docs/
 *.md

@@ -28,6 +28,9 @@ jobs:
       - name: Check FastAPI app import
         run: python -c "from app.core.app import create_app; create_app()"
 
+      - name: Run backend tests
+        run: python -m unittest discover -s tests
+
       - name: Check Python dependencies
         run: pip check
 

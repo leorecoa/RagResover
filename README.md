@@ -103,6 +103,12 @@ Run local checks:
 powershell -ExecutionPolicy Bypass -File scripts/check.ps1
 ```
 
+Run only backend tests:
+
+```powershell
+venv\Scripts\python.exe -m unittest discover -s tests
+```
+
 Useful commands:
 
 ```powershell

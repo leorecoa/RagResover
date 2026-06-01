@@ -2,21 +2,21 @@
 
 Use these as the first public issues for the repository.
 
-## 1. Add Automated Backend Tests
+## 1. Expand Automated Backend Tests
 
 Labels: `testing`, `backend`, `quality`
 
 ### Summary
 
-Add automated tests for the core backend flows so future changes can be made safely.
+Expand the initial automated test suite so future changes can be made safely across more realistic scenarios.
 
 ### Scope
 
-- Test `/health` and `/ready`.
-- Test upload validation errors.
-- Test text chunking behavior.
-- Test search error behavior when embeddings are unavailable.
-- Add service-level tests for provider selection.
+- Add integration tests with a real Postgres/pgvector database.
+- Add ingestion tests for storage failures and rollback behavior.
+- Add service-level tests for provider selection and provider errors.
+- Add regression tests for chat source formatting.
+- Add test fixtures for sample documents.
 
 ### Acceptance Criteria
 
