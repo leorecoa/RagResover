@@ -1,4 +1,23 @@
+
 # RagResover
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![MinIO](https://img.shields.io/badge/MinIO-Object_Storage-C72E49?style=for-the-badge&logo=minio&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-000000?style=for-the-badge&logo=ollama&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-Provider-412991?style=for-the-badge&logo=openai&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-Text_Splitting-1C3C3C?style=for-the-badge)
+![Alembic](https://img.shields.io/badge/Alembic-Migrations-6BA81E?style=for-the-badge)
+![Pytest](https://img.shields.io/badge/Pytest-Tested-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
+
+![RAG](https://img.shields.io/badge/RAG-Retrieval_Augmented_Generation-blueviolet?style=flat-square)
+![Local First](https://img.shields.io/badge/Local--First-Private_Documents-success?style=flat-square)
+![Semantic Search](https://img.shields.io/badge/Semantic_Search-pgvector-informational?style=flat-square)
+![Status](https://img.shields.io/badge/Status-MVP_in_progress-yellow?style=flat-square)
+![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
+```
 
 RagResover is a local-first Retrieval-Augmented Generation platform for indexing private documents and asking questions over them with cited sources.
 
