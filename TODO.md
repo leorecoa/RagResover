@@ -25,7 +25,7 @@
 - [x] Criar documentacao inicial para arquitetura, API, seguranca, deploy e prontidao comercial
 - [x] Fixar versoes diretas em `requirements.txt`
 - [x] Criar workflow de CI e script local de validacao
-- [x] Criar suite inicial de testes automatizados sem depender de Docker/provedores externos
+- [x] Criar suite inicial de testes automatizados com pytest sem depender de Docker/provedores externos
 - [x] Criar migrations iniciais com Alembic e servico Docker de migracao
 
 ## Proximas tarefas

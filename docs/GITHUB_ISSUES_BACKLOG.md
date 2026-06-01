@@ -8,7 +8,7 @@ Labels: `testing`, `backend`, `quality`
 
 ### Summary
 
-Expand the initial automated test suite so future changes can be made safely across more realistic scenarios.
+Expand the current pytest suite so future changes can be made safely across more realistic scenarios.
 
 ### Scope
 
