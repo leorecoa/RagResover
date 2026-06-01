@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile Python
+        run: python -m compileall -q app main.py config.py ingestion_service.py storage_service.py
+
+      - name: Check FastAPI app import
+        run: python -c "from app.core.app import create_app; create_app()"
+
+      - name: Check Python dependencies
+        run: pip check
+
+      - name: Check frontend JavaScript
+        run: |
+          node --check frontend/app.js
+          node --check frontend/server.js
+
+      - name: Check Docker Compose config
+        run: docker compose config --quiet

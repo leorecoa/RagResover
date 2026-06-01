@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RagResover</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-upload" viewBox="0 0 24 24">
+        <path d="M12 3v12m0-12 4 4m-4-4-4 4M5 15v4h14v-4" />
+      </symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24">
+        <path d="m21 21-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />
+      </symbol>
+      <symbol id="icon-send" viewBox="0 0 24 24">
+        <path d="m22 2-7 20-4-9-9-4 20-7Z" />
+      </symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8M18 3v4h-4M6 21v-4h4" />
+      </symbol>
+    </svg>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>RagResover</h1>
+          <p id="backendSummary">Verificando API...</p>
+        </div>
+        <button class="icon-button" id="refreshStatus" type="button" title="Atualizar status">
+          <svg><use href="#icon-refresh"></use></svg>
+        </button>
+      </header>
+
+      <main class="workspace">
+        <aside class="side-panel">
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Status</h2>
+              <span class="status-pill" id="readyPill">...</span>
+            </div>
+            <dl class="status-grid">
+              <div>
+                <dt>API</dt>
+                <dd id="apiState">...</dd>
+              </div>
+              <div>
+                <dt>Banco</dt>
+                <dd id="databaseState">...</dd>
+              </div>
+              <div>
+                <dt>Storage</dt>
+                <dd id="storageState">...</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Upload</h2>
+              <span class="hint">.txt .md .json</span>
+            </div>
+            <form id="uploadForm" class="upload-form">
+              <label class="drop-zone" for="fileInput">
+                <input id="fileInput" name="file" type="file" accept=".txt,.md,.json,text/plain,text/markdown,application/json" />
+                <span id="fileName">Selecionar documento</span>
+              </label>
+              <button class="primary-button" type="submit">
+                <svg><use href="#icon-upload"></use></svg>
+                Enviar
+              </button>
+            </form>
+            <div class="result-box" id="uploadResult"></div>
+          </section>
+        </aside>
+
+        <section class="main-panel">
+          <nav class="tabs" aria-label="Modos">
+            <button class="tab-button active" type="button" data-tab="chatPanel">Chat</button>
+            <button class="tab-button" type="button" data-tab="searchPanel">Busca</button>
+          </nav>
+
+          <section class="tab-panel active" id="chatPanel">
+            <div class="conversation" id="chatMessages"></div>
+            <form class="composer" id="chatForm">
+              <textarea id="chatQuestion" rows="3" placeholder="Pergunte sobre os documentos indexados"></textarea>
+              <div class="composer-actions">
+                <label>
+                  Top K
+                  <input id="chatTopK" type="number" min="1" max="20" value="5" />
+                </label>
+                <button class="primary-button" type="submit">
+                  <svg><use href="#icon-send"></use></svg>
+                  Perguntar
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section class="tab-panel" id="searchPanel">
+            <form class="search-form" id="searchForm">
+              <input id="searchQuery" type="search" placeholder="Buscar trecho nos documentos" />
+              <label>
+                Top K
+                <input id="searchTopK" type="number" min="1" max="20" value="5" />
+              </label>
+              <button class="primary-button" type="submit">
+                <svg><use href="#icon-search"></use></svg>
+                Buscar
+              </button>
+            </form>
+            <div class="results-list" id="searchResults"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

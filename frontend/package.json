@@ -1,0 +1,14 @@
+{
+  "name": "ragresover-frontend",
+  "version": "1.0.0",
+  "description": "Static demo frontend for RagResover.",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "serve": "node server.js",
+    "check": "node --check app.js && node --check server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
