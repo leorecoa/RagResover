@@ -15,6 +15,7 @@ class FakeRepository:
     async def search_similar_chunks(
         self,
         *,
+        tenant_id,
         embedding,
         limit,
         score_threshold=None,
@@ -23,6 +24,7 @@ class FakeRepository:
         self.calls.append(
             {
                 "embedding": embedding,
+                "tenant_id": tenant_id,
                 "limit": limit,
                 "score_threshold": score_threshold,
                 "metadata_filters": metadata_filters,
@@ -48,6 +50,7 @@ def make_result(index: int, score: float) -> SearchResult:
     return SearchResult(
         chunk_id=UUID(f"00000000-0000-0000-0000-{index:012d}"),
         document_id=UUID("99999999-9999-9999-9999-999999999999"),
+        tenant_id="tenant-a",
         file_name=f"file-{index}.md",
         content=f"content-{index}",
         score=score,
@@ -64,6 +67,7 @@ def test_retrieval_service_passes_threshold_and_metadata_filters_to_repository(m
     async def call_service():
         return await service.retrieve(
             repository=repository,
+            tenant_id="tenant-a",
             query="manual",
             top_k=3,
             score_threshold=0.75,
@@ -75,6 +79,7 @@ def test_retrieval_service_passes_threshold_and_metadata_filters_to_repository(m
     assert repository.calls == [
         {
             "embedding": [0.1, 0.2, 0.3],
+            "tenant_id": "tenant-a",
             "limit": 12,
             "score_threshold": 0.75,
             "metadata_filters": {"source": "manual.pdf", "page": 1},
@@ -97,6 +102,7 @@ def test_retrieval_service_uses_default_score_threshold_from_settings(monkeypatc
     async def call_service():
         return await service.retrieve(
             repository=repository,
+            tenant_id="tenant-a",
             query="manual",
             top_k=2,
         )
@@ -121,6 +127,7 @@ def test_retrieval_service_reranker_interface_can_reorder_results(monkeypatch):
     async def call_service():
         return await service.retrieve(
             repository=repository,
+            tenant_id="tenant-a",
             query="manual",
             top_k=2,
         )
@@ -128,5 +135,6 @@ def test_retrieval_service_reranker_interface_can_reorder_results(monkeypatch):
     result = anyio.run(call_service)
 
     assert [item.score for item in result.results] == [0.95, 0.7]
+    assert result.diagnostics.as_dict()["tenant_id"] == "tenant-a"
     assert result.diagnostics.as_dict()["reranker_provider"] == "fake"
     assert result.diagnostics.as_dict()["reranker_applied"] is True

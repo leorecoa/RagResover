@@ -76,6 +76,7 @@ def test_chat_service_dispatches_to_configured_provider_without_network(monkeypa
     search_result = SearchResult(
         chunk_id=UUID("66666666-6666-6666-6666-666666666666"),
         document_id=UUID("77777777-7777-7777-7777-777777777777"),
+        tenant_id="tenant-a",
         file_name="manual.md",
         content="Conteudo recuperado",
         score=0.9,

@@ -30,6 +30,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 - Vector persistence in PostgreSQL with pgvector
 - Semantic search over indexed chunks
 - Retrieval controls with score threshold and metadata filters
+- Header-based tenant isolation for upload, search, and chat
 - RAG chat with retrieved sources
 - Provider switch between OpenAI and local Ollama
 - Docker Compose stack for local development
@@ -115,6 +116,8 @@ API docs: http://localhost:8000/docs
 Examples: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md).
 
 Search and chat accept optional `score_threshold` and `metadata_filters` fields. When `DEBUG=true`, responses include retrieval diagnostics such as fetch size, effective threshold, filters, embedding provider, and reranker provider.
+
+Upload, search, and chat accept `X-Tenant-ID` to isolate documents by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`.
 
 ## Frontend
 

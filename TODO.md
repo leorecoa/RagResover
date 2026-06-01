@@ -29,6 +29,7 @@
 - [x] Criar migrations iniciais com Alembic e servico Docker de migracao
 - [x] Adicionar parsers reais para PDF e DOCX com metadados de pagina/secao
 - [x] Adicionar controles de retrieval com threshold, filtros, diagnostics e reranker placeholder
+- [x] Adicionar autenticacao MVP e isolamento por tenant em upload/search/chat
 
 ## Proximas tarefas
 
@@ -37,7 +38,7 @@
 - [ ] Ampliar cobertura de testes com casos de integracao e banco real
 - [ ] Endurecer workflow de migrations com testes de banco real e downgrade smoke test
 - [ ] Evoluir frontend para Next.js/React se precisar de estado mais complexo
-- [ ] Adicionar autenticacao e separacao por usuario/tenant
+- [ ] Endurecer auth com usuarios reais, roles, memberships e auditoria
 - [ ] Adicionar observabilidade mais completa
 
 ## Riscos tecnicos atuais

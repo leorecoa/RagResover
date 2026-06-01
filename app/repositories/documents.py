@@ -18,6 +18,7 @@ class PersistedIngestion:
 class SearchResult:
     chunk_id: UUID
     document_id: UUID
+    tenant_id: str
     file_name: str
     content: str
     score: float
@@ -55,11 +56,13 @@ class DocumentRepository:
         file_size: int,
         storage_path: str,
         metadata: dict[str, Any],
+        tenant_id: str,
     ) -> UUID:
         result = await self.session.execute(
             text(
                 """
                 INSERT INTO source_documents (
+                    tenant_id,
                     title,
                     file_name,
                     content_type,
@@ -68,6 +71,7 @@ class DocumentRepository:
                     metadata
                 )
                 VALUES (
+                    :tenant_id,
                     :title,
                     :file_name,
                     :content_type,
@@ -79,6 +83,7 @@ class DocumentRepository:
                 """
             ),
             {
+                "tenant_id": tenant_id,
                 "title": title,
                 "file_name": file_name,
                 "content_type": content_type,
@@ -93,6 +98,7 @@ class DocumentRepository:
         self,
         *,
         document_id: UUID,
+        tenant_id: str,
         chunks: list[Document],
         embeddings: list[list[float] | None],
     ) -> None:
@@ -106,6 +112,7 @@ class DocumentRepository:
                 """
                 INSERT INTO document_chunks (
                     source_document_id,
+                    tenant_id,
                     chunk_index,
                     content,
                     metadata,
@@ -113,6 +120,7 @@ class DocumentRepository:
                 )
                 VALUES (
                     :source_document_id,
+                    :tenant_id,
                     :chunk_index,
                     :content,
                     CAST(:metadata AS jsonb),
@@ -123,6 +131,7 @@ class DocumentRepository:
             [
                 {
                     "source_document_id": document_id,
+                    "tenant_id": tenant_id,
                     "chunk_index": index,
                     "content": chunk.page_content,
                     "metadata": json.dumps(chunk.metadata),
@@ -141,6 +150,7 @@ class DocumentRepository:
         storage_path: str,
         chunks: list[Document],
         embeddings: list[list[float] | None],
+        tenant_id: str,
     ) -> PersistedIngestion:
         try:
             document_id = await self.create_source_document(
@@ -149,10 +159,12 @@ class DocumentRepository:
                 content_type=content_type,
                 file_size=file_size,
                 storage_path=storage_path,
-                metadata={"source": file_name},
+                metadata={"source": file_name, "tenant_id": tenant_id},
+                tenant_id=tenant_id,
             )
             await self.create_chunks(
                 document_id=document_id,
+                tenant_id=tenant_id,
                 chunks=chunks,
                 embeddings=embeddings,
             )
@@ -169,6 +181,7 @@ class DocumentRepository:
     async def search_similar_chunks(
         self,
         *,
+        tenant_id: str,
         embedding: list[float],
         limit: int,
         score_threshold: float | None = None,
@@ -180,6 +193,7 @@ class DocumentRepository:
                 SELECT
                     dc.id AS chunk_id,
                     dc.source_document_id AS document_id,
+                    dc.tenant_id,
                     sd.file_name,
                     dc.content,
                     dc.metadata,
@@ -188,6 +202,8 @@ class DocumentRepository:
                 JOIN source_documents sd ON sd.id = dc.source_document_id
                 WHERE
                     dc.embedding IS NOT NULL
+                    AND dc.tenant_id = :tenant_id
+                    AND sd.tenant_id = :tenant_id
                     AND (
                         :score_threshold IS NULL
                         OR 1 - (dc.embedding <=> CAST(:embedding AS vector)) >= :score_threshold
@@ -201,6 +217,7 @@ class DocumentRepository:
                 """
             ),
             {
+                "tenant_id": tenant_id,
                 "embedding": serialize_vector(embedding),
                 "limit": limit,
                 "score_threshold": score_threshold,
@@ -216,6 +233,7 @@ class DocumentRepository:
             SearchResult(
                 chunk_id=row["chunk_id"],
                 document_id=row["document_id"],
+                tenant_id=row["tenant_id"],
                 file_name=row["file_name"],
                 content=row["content"],
                 score=float(row["score"]),

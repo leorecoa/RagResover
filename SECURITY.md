@@ -22,6 +22,8 @@ Before production:
 - change MinIO credentials
 - change database credentials
 - disable debug mode
+- disable anonymous access
+- configure a strong API auth token or replace the MVP auth layer
 - restrict CORS
 - enable authentication
 - configure HTTPS

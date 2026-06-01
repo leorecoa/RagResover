@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.auth import TenantContext, get_tenant_context
 from app.api.schemas.search import SearchRequest, SearchResponse
 from app.core.config import settings
 from app.db.session import get_db_session
@@ -17,10 +18,12 @@ router = APIRouter(tags=["Retrieval"])
 async def search_documents(
     request: SearchRequest,
     session: AsyncSession = Depends(get_db_session),
+    tenant: TenantContext = Depends(get_tenant_context),
 ):
     try:
         retrieval = await retrieval_service.retrieve(
             repository=DocumentRepository(session),
+            tenant_id=tenant.tenant_id,
             query=request.query,
             top_k=request.top_k,
             score_threshold=request.score_threshold,

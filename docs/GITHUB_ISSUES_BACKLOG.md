@@ -24,26 +24,26 @@ Expand the current pytest suite so future changes can be made safely across more
 - CI runs the test suite.
 - Tests do not require real OpenAI credentials.
 
-## 2. Add Authentication And Tenant Isolation
+## 2. Harden Authentication And Tenant Isolation
 
 Labels: `security`, `backend`, `commercial-readiness`
 
 ### Summary
 
-Add authentication and data isolation so each user or organization can only access its own documents.
+Harden the current MVP header/token authentication into production-grade account and authorization controls.
 
 ### Scope
 
-- Choose authentication approach for MVP.
-- Add owner or tenant fields to persisted documents and chunks.
-- Filter upload, search, and chat by authenticated tenant.
-- Update API schemas and docs.
+- Add real user accounts or external identity provider integration.
+- Add per-user roles and tenant membership checks.
+- Add audit logs for document access.
+- Add integration tests with real Postgres tenant boundaries.
 
 ### Acceptance Criteria
 
-- Anonymous access can be disabled.
-- Search and chat cannot return documents from another tenant.
-- Tests cover access boundaries.
+- Tenant access is verified against authenticated user membership.
+- Access logs identify user and tenant.
+- Tests cover cross-tenant denial with a real database.
 
 ## 3. Expand Document Parsing
 

@@ -19,6 +19,9 @@ Browser
 app/api/routes
   HTTP endpoints. Keep these thin.
 
+app/api/dependencies
+  Request dependencies such as tenant authentication.
+
 app/api/schemas
   Pydantic request and response contracts.
 
@@ -42,6 +45,7 @@ migrations
 
 ```text
 POST /upload
+  -> resolve tenant from headers/config
   -> validate file
   -> upload raw file to MinIO
   -> parse text, PDF, or DOCX content
@@ -56,8 +60,10 @@ PDF parsing preserves page metadata when text is extractable. DOCX parsing prese
 
 ```text
 POST /search
+  -> resolve tenant from headers/config
   -> embed query
   -> vector search in document_chunks.embedding
+  -> constrain results by tenant_id
   -> apply optional score threshold and metadata filters
   -> optionally pass through a reranker interface
   -> return ranked chunks
@@ -67,8 +73,10 @@ POST /search
 
 ```text
 POST /chat
+  -> resolve tenant from headers/config
   -> embed question
   -> retrieve top chunks with the same retrieval controls used by search
+  -> constrain results by tenant_id
   -> build context prompt
   -> call LLM provider
   -> return answer and sources
@@ -86,6 +94,17 @@ Primary tables are managed through Alembic migrations:
 - `messages`: reserved for future chat messages.
 
 `scripts/init_db.sql` only bootstraps PostgreSQL extensions and schema search path for local Docker startup.
+
+Tenant isolation is stored in `tenant_id` columns. Upload writes the current tenant into `source_documents` and `document_chunks`; search/chat filter by that same tenant before returning context.
+
+## Authentication
+
+The MVP uses header-based tenant auth:
+
+- `X-Tenant-ID`: tenant or organization identifier.
+- `ALLOW_ANONYMOUS_ACCESS=true`: missing tenant header falls back to `DEFAULT_TENANT_ID`.
+- `ALLOW_ANONYMOUS_ACCESS=false`: missing tenant header returns `401`.
+- `API_AUTH_TOKEN`: optional shared token. When configured, requests must send `Authorization: Bearer <token>` or `X-API-Key: <token>`.
 
 ## Provider Strategy
 
@@ -116,4 +135,4 @@ RagResover supports:
 - Upload reads the whole file into memory.
 - Scanned PDFs without embedded text are not OCR-processed yet.
 - HTML parsing is not implemented yet.
-- No authentication or tenant isolation yet.
+- Authentication is MVP header/token based, not full user account management yet.

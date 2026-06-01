@@ -22,6 +22,7 @@ Invoke-RestMethod http://localhost:8000/ready
 
 ```powershell
 curl.exe -X POST http://localhost:8000/upload `
+  -H "X-Tenant-ID: tenant-demo" `
   -F "file=@README.md;type=text/markdown"
 ```
 
@@ -29,6 +30,7 @@ PDF:
 
 ```powershell
 curl.exe -X POST http://localhost:8000/upload `
+  -H "X-Tenant-ID: tenant-demo" `
   -F "file=@manual.pdf;type=application/pdf"
 ```
 
@@ -36,6 +38,7 @@ DOCX:
 
 ```powershell
 curl.exe -X POST http://localhost:8000/upload `
+  -H "X-Tenant-ID: tenant-demo" `
   -F "file=@manual.docx;type=application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 ```
 
@@ -66,7 +69,8 @@ $body = @{
 Invoke-RestMethod http://localhost:8000/search `
   -Method Post `
   -Body $body `
-  -ContentType "application/json"
+  -ContentType "application/json" `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
 ```
 
 When `DEBUG=true`, the response includes retrieval diagnostics:
@@ -79,6 +83,7 @@ When `DEBUG=true`, the response includes retrieval diagnostics:
     "requested_top_k": 3,
     "fetch_limit": 12,
     "returned_count": 0,
+    "tenant_id": "tenant-demo",
     "score_threshold": 0.7,
     "metadata_filters": {
       "source": "manual.pdf"
@@ -105,5 +110,15 @@ $body = @{
 Invoke-RestMethod http://localhost:8000/chat `
   -Method Post `
   -Body $body `
-  -ContentType "application/json"
+  -ContentType "application/json" `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+If `API_AUTH_TOKEN` is configured:
+
+```powershell
+$headers = @{
+  "X-Tenant-ID" = "tenant-demo"
+  "Authorization" = "Bearer your-token"
+}
 ```

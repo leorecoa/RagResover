@@ -156,4 +156,41 @@ def test_upload_processes_valid_text_file_with_mocked_services(client_with_fake_
     )
     assert captured["file_name"] == "note.txt"
     assert captured["content_type"] == "text/plain"
+    assert captured["tenant_id"] == "anonymous"
     assert captured["embeddings"] == [[0.1, 0.2], [0.3, 0.4]]
+
+
+def test_upload_persists_document_with_tenant_header(client_with_fake_db):
+    document_id = UUID("11111111-1111-1111-1111-111111111111")
+    chunks = [Document(page_content="Trecho", metadata={"source": "note.txt"})]
+    ingestion_service = AsyncMock()
+    ingestion_service.ingest_raw_file.return_value = IngestionResult(
+        chunks=chunks,
+        storage_path="s3://documents/note.txt",
+        file_size=6,
+    )
+    embedding_service = AsyncMock()
+    embedding_service.embed_texts.return_value = [[0.1, 0.2]]
+    captured = {}
+
+    class FakeDocumentRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def persist_ingestion(self, **kwargs):
+            captured.update(kwargs)
+            return PersistedIngestion(document_id=document_id, chunks_count=1)
+
+    with (
+        patch("app.api.routes.ingestion.ingestion_service", ingestion_service),
+        patch("app.api.routes.ingestion.embedding_service", embedding_service),
+        patch("app.api.routes.ingestion.DocumentRepository", FakeDocumentRepository),
+    ):
+        response = client_with_fake_db.post(
+            "/upload",
+            files={"file": ("note.txt", b"Trecho", "text/plain")},
+            headers={"X-Tenant-ID": "tenant-a"},
+        )
+
+    assert response.status_code == 200
+    assert captured["tenant_id"] == "tenant-a"
