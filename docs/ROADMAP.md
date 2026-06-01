@@ -5,7 +5,6 @@
 - Add automated backend tests.
 - Add frontend smoke tests.
 - Pin dependency versions.
-- Add Alembic migrations.
 - Improve error responses and request IDs.
 
 ## Document Processing

@@ -1,13 +1,23 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "Checking Python syntax..."
-venv\Scripts\python.exe -m compileall -q app main.py config.py ingestion_service.py storage_service.py
+venv\Scripts\python.exe -m compileall -q app migrations main.py config.py ingestion_service.py storage_service.py
 
 Write-Host "Checking FastAPI app import..."
 venv\Scripts\python.exe -c "from app.core.app import create_app; create_app()"
 
 Write-Host "Running backend tests..."
 venv\Scripts\python.exe -m unittest discover -s tests
+
+Write-Host "Checking Alembic offline migration SQL..."
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+venv\Scripts\alembic.exe upgrade head --sql > $null 2> $null
+$alembicExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($alembicExitCode -ne 0) {
+    throw "Alembic offline migration SQL check failed with exit code $alembicExitCode."
+}
 
 Write-Host "Checking Python dependencies..."
 venv\Scripts\pip.exe check

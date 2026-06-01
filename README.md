@@ -13,6 +13,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 - RAG chat with retrieved sources
 - Provider switch between OpenAI and local Ollama
 - Docker Compose stack for local development
+- Alembic migrations for versioned database schema changes
 - Static frontend for demos and manual usage
 
 ## Architecture
@@ -31,6 +32,7 @@ app/
   api/            HTTP routes and Pydantic schemas
   core/           app factory, config, logging, lifecycle
   db/             async database session
+  migrations/     Alembic database migrations
   repositories/   SQL and persistence operations
   services/       ingestion, storage, embeddings, chat
 ```
@@ -107,6 +109,12 @@ Run only backend tests:
 
 ```powershell
 venv\Scripts\python.exe -m unittest discover -s tests
+```
+
+Run database migrations:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/migrate.ps1
 ```
 
 Useful commands:

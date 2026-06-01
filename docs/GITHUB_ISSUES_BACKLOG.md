@@ -66,20 +66,20 @@ Support real-world business documents beyond plain text, Markdown, and JSON.
 - Extracted text is chunked and indexed.
 - Search and chat source references include useful document metadata.
 
-## 4. Introduce Alembic Migrations
+## 4. Harden Alembic Migration Workflow
 
 Labels: `database`, `devops`, `quality`
 
 ### Summary
 
-Replace one-time schema initialization with versioned database migrations.
+Harden the initial Alembic setup for production deployment and future schema changes.
 
 ### Scope
 
-- Add Alembic configuration.
-- Create initial migration matching `scripts/init_db.sql`.
-- Document local migration commands.
-- Update Docker/dev workflow.
+- Add a real integration test that upgrades a fresh Postgres database.
+- Add migration downgrade smoke checks.
+- Add release guidance for running migrations before backend rollout.
+- Decide whether migration execution should stay in Docker Compose or move to deployment tooling.
 
 ### Acceptance Criteria
 

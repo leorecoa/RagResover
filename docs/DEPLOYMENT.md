@@ -13,6 +13,8 @@ ollama pull nomic-embed-text
 docker compose up --build
 ```
 
+The compose stack runs `alembic upgrade head` before the backend starts.
+
 Then start the static frontend:
 
 ```powershell
@@ -32,7 +34,7 @@ Before selling this as a hosted product, add or configure:
 - Rate limiting for upload, search, and chat.
 - Request IDs and structured logs.
 - Backup and restore for Postgres and object storage.
-- Alembic migrations instead of only init SQL.
+- Alembic migrations in the deployment pipeline.
 - Monitoring for API latency, provider errors, token usage, and storage growth.
 
 ## Environment Notes
@@ -47,6 +49,12 @@ STORAGE_REQUIRED=true
 DATABASE_URL=postgresql+asyncpg://...
 STORAGE_ACCESS_KEY=...
 STORAGE_SECRET_KEY=...
+```
+
+Run migrations during deploy:
+
+```powershell
+alembic upgrade head
 ```
 
 ## Provider Choice

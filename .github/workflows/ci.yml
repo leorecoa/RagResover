@@ -23,13 +23,16 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile Python
-        run: python -m compileall -q app main.py config.py ingestion_service.py storage_service.py
+        run: python -m compileall -q app migrations main.py config.py ingestion_service.py storage_service.py
 
       - name: Check FastAPI app import
         run: python -c "from app.core.app import create_app; create_app()"
 
       - name: Run backend tests
         run: python -m unittest discover -s tests
+
+      - name: Check Alembic offline migration SQL
+        run: alembic upgrade head --sql > /tmp/alembic.sql
 
       - name: Check Python dependencies
         run: pip check
