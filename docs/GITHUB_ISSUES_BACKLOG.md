@@ -1,0 +1,109 @@
+# GitHub Issues Backlog
+
+Use these as the first public issues for the repository.
+
+## 1. Add Automated Backend Tests
+
+Labels: `testing`, `backend`, `quality`
+
+### Summary
+
+Add automated tests for the core backend flows so future changes can be made safely.
+
+### Scope
+
+- Test `/health` and `/ready`.
+- Test upload validation errors.
+- Test text chunking behavior.
+- Test search error behavior when embeddings are unavailable.
+- Add service-level tests for provider selection.
+
+### Acceptance Criteria
+
+- Tests run with one documented command.
+- CI runs the test suite.
+- Tests do not require real OpenAI credentials.
+
+## 2. Add Authentication And Tenant Isolation
+
+Labels: `security`, `backend`, `commercial-readiness`
+
+### Summary
+
+Add authentication and data isolation so each user or organization can only access its own documents.
+
+### Scope
+
+- Choose authentication approach for MVP.
+- Add owner or tenant fields to persisted documents and chunks.
+- Filter upload, search, and chat by authenticated tenant.
+- Update API schemas and docs.
+
+### Acceptance Criteria
+
+- Anonymous access can be disabled.
+- Search and chat cannot return documents from another tenant.
+- Tests cover access boundaries.
+
+## 3. Add PDF And DOCX Parsing
+
+Labels: `ingestion`, `rag-quality`, `feature`
+
+### Summary
+
+Support real-world business documents beyond plain text, Markdown, and JSON.
+
+### Scope
+
+- Add PDF text extraction.
+- Add DOCX text extraction.
+- Preserve useful metadata when possible, such as page number or section.
+- Return clear errors for unsupported or unreadable files.
+
+### Acceptance Criteria
+
+- Users can upload PDF and DOCX files.
+- Extracted text is chunked and indexed.
+- Search and chat source references include useful document metadata.
+
+## 4. Introduce Alembic Migrations
+
+Labels: `database`, `devops`, `quality`
+
+### Summary
+
+Replace one-time schema initialization with versioned database migrations.
+
+### Scope
+
+- Add Alembic configuration.
+- Create initial migration matching `scripts/init_db.sql`.
+- Document local migration commands.
+- Update Docker/dev workflow.
+
+### Acceptance Criteria
+
+- A fresh database can be created through migrations.
+- Existing local schema can be aligned without manual SQL editing.
+- CI validates migration configuration.
+
+## 5. Improve Retrieval Quality Controls
+
+Labels: `retrieval`, `rag-quality`, `feature`
+
+### Summary
+
+Add retrieval tuning controls that make answers more reliable and easier to debug.
+
+### Scope
+
+- Add score threshold configuration.
+- Add metadata filters.
+- Add optional reranking integration.
+- Return retrieval diagnostics in search/chat responses when debug mode is enabled.
+
+### Acceptance Criteria
+
+- Low-relevance chunks can be filtered out.
+- Search can be constrained by metadata.
+- RAG responses expose enough source information for debugging.
