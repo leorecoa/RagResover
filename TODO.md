@@ -28,10 +28,11 @@
 - [x] Criar suite inicial de testes automatizados com pytest sem depender de Docker/provedores externos
 - [x] Criar migrations iniciais com Alembic e servico Docker de migracao
 - [x] Adicionar parsers reais para PDF e DOCX com metadados de pagina/secao
+- [x] Adicionar controles de retrieval com threshold, filtros, diagnostics e reranker placeholder
 
 ## Proximas tarefas
 
-- [ ] Adicionar reranking opcional com Cohere
+- [ ] Implementar reranking real com Cohere ou provider compativel
 - [ ] Adicionar parser HTML e OCR para PDFs escaneados
 - [ ] Ampliar cobertura de testes com casos de integracao e banco real
 - [ ] Endurecer workflow de migrations com testes de banco real e downgrade smoke test
@@ -44,4 +45,4 @@
 - Upload ainda le o arquivo inteiro em memoria.
 - Sem `OPENAI_API_KEY`, os chunks sao salvos sem embedding.
 - O banco precisa estar inicializado com `scripts/init_db.sql`.
-- O fluxo de chat inicial existe, mas ainda precisa de testes, reranking e melhor controle de fontes.
+- O fluxo de chat inicial existe, mas ainda precisa de reranking real e melhor avaliacao de qualidade.

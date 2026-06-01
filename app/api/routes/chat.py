@@ -4,10 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.chat import ChatRequest, ChatResponse
+from app.core.config import settings
 from app.db.session import get_db_session
 from app.repositories.documents import DocumentRepository, SearchResult
 from app.services.chat import chat_service
-from app.services.embeddings import embedding_service
+from app.services.retrieval import retrieval_service
 
 logger = logging.getLogger("rag_resover")
 router = APIRouter(tags=["Chat"])
@@ -28,28 +29,33 @@ def build_source_payload(results: list[SearchResult]) -> list[dict]:
     ]
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
 async def chat(
     request: ChatRequest,
     session: AsyncSession = Depends(get_db_session),
 ):
     try:
-        query_embedding = await embedding_service.embed_query(request.question)
-        results = await DocumentRepository(session).search_similar_chunks(
-            embedding=query_embedding,
-            limit=request.top_k,
+        retrieval = await retrieval_service.retrieve(
+            repository=DocumentRepository(session),
+            query=request.question,
+            top_k=request.top_k,
+            score_threshold=request.score_threshold,
+            metadata_filters=request.metadata_filters,
         )
 
-        if not results:
-            return {
+        diagnostics = retrieval.diagnostics.as_dict() if settings.DEBUG else None
+        if not retrieval.results:
+            payload = {
                 "question": request.question,
                 "answer": "Nao encontrei contexto suficiente nos documentos indexados.",
                 "sources": [],
+                "diagnostics": diagnostics,
             }
+            return payload
 
         chat_answer = await chat_service.answer_question(
             question=request.question,
-            results=results,
+            results=retrieval.results,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -60,5 +66,6 @@ async def chat(
     return {
         "question": request.question,
         "answer": chat_answer.answer,
-        "sources": build_source_payload(results),
+        "sources": build_source_payload(retrieval.results),
+        "diagnostics": retrieval.diagnostics.as_dict() if settings.DEBUG else None,
     }

@@ -57,6 +57,10 @@ Example response:
 $body = @{
   query = "Quais endpoints existem no projeto?"
   top_k = 3
+  score_threshold = 0.7
+  metadata_filters = @{
+    source = "manual.pdf"
+  }
 } | ConvertTo-Json
 
 Invoke-RestMethod http://localhost:8000/search `
@@ -65,12 +69,37 @@ Invoke-RestMethod http://localhost:8000/search `
   -ContentType "application/json"
 ```
 
+When `DEBUG=true`, the response includes retrieval diagnostics:
+
+```json
+{
+  "query": "Quais endpoints existem no projeto?",
+  "results": [],
+  "diagnostics": {
+    "requested_top_k": 3,
+    "fetch_limit": 12,
+    "returned_count": 0,
+    "score_threshold": 0.7,
+    "metadata_filters": {
+      "source": "manual.pdf"
+    },
+    "embedding_provider": "ollama",
+    "reranker_provider": "none",
+    "reranker_applied": false
+  }
+}
+```
+
 ## Chat
 
 ```powershell
 $body = @{
   question = "Quais endpoints existem no projeto?"
   top_k = 3
+  score_threshold = 0.7
+  metadata_filters = @{
+    source = "manual.pdf"
+  }
 } | ConvertTo-Json
 
 Invoke-RestMethod http://localhost:8000/chat `

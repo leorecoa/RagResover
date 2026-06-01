@@ -29,6 +29,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 - Text chunking with LangChain text splitters
 - Vector persistence in PostgreSQL with pgvector
 - Semantic search over indexed chunks
+- Retrieval controls with score threshold and metadata filters
 - RAG chat with retrieved sources
 - Provider switch between OpenAI and local Ollama
 - Docker Compose stack for local development
@@ -112,6 +113,8 @@ API docs: http://localhost:8000/docs
 | POST | `/chat` | RAG answer with sources |
 
 Examples: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md).
+
+Search and chat accept optional `score_threshold` and `metadata_filters` fields. When `DEBUG=true`, responses include retrieval diagnostics such as fetch size, effective threshold, filters, embedding provider, and reranker provider.
 
 ## Frontend
 
