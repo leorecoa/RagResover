@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 from app.repositories.documents import SearchResult
+from app.services.retrieval import RetrievalDiagnostics, RetrievalResult
 
 
 def test_search_returns_ranked_chunks(client_with_fake_db):
@@ -13,38 +14,39 @@ def test_search_returns_ranked_chunks(client_with_fake_db):
         score=0.91,
         metadata={"source": "manual.md"},
     )
-    embedding_service = AsyncMock()
-    embedding_service.embed_query.return_value = [0.1, 0.2]
-    captured = {}
+    retrieval_service = AsyncMock()
+    retrieval_service.retrieve.return_value = RetrievalResult(
+        results=[result],
+        diagnostics=RetrievalDiagnostics(
+            requested_top_k=3,
+            fetch_limit=12,
+            returned_count=1,
+            score_threshold=None,
+            metadata_filters={},
+            embedding_provider="ollama",
+            reranker_provider="none",
+            reranker_applied=False,
+        ),
+    )
 
-    class FakeDocumentRepository:
-        def __init__(self, session):
-            captured["session"] = session
-
-        async def search_similar_chunks(self, *, embedding, limit):
-            captured["embedding"] = embedding
-            captured["limit"] = limit
-            return [result]
-
-    with (
-        patch("app.api.routes.search.embedding_service", embedding_service),
-        patch("app.api.routes.search.DocumentRepository", FakeDocumentRepository),
-    ):
+    with patch("app.api.routes.search.retrieval_service", retrieval_service):
         response = client_with_fake_db.post("/search", json={"query": "manual", "top_k": 3})
 
     assert response.status_code == 200
     assert response.json()["query"] == "manual"
     assert response.json()["results"][0]["score"] == 0.91
     assert response.json()["results"][0]["file_name"] == "manual.md"
-    assert captured["embedding"] == [0.1, 0.2]
-    assert captured["limit"] == 3
+    retrieval_service.retrieve.assert_awaited_once()
+    call_kwargs = retrieval_service.retrieve.await_args.kwargs
+    assert call_kwargs["query"] == "manual"
+    assert call_kwargs["top_k"] == 3
 
 
 def test_search_returns_503_when_embedding_provider_is_unavailable(client_with_fake_db):
-    embedding_service = AsyncMock()
-    embedding_service.embed_query.side_effect = RuntimeError("embedding provider unavailable")
+    retrieval_service = AsyncMock()
+    retrieval_service.retrieve.side_effect = RuntimeError("embedding provider unavailable")
 
-    with patch("app.api.routes.search.embedding_service", embedding_service):
+    with patch("app.api.routes.search.retrieval_service", retrieval_service):
         response = client_with_fake_db.post("/search", json={"query": "manual"})
 
     assert response.status_code == 503
@@ -55,3 +57,63 @@ def test_search_validates_top_k_range(client_with_fake_db):
     response = client_with_fake_db.post("/search", json={"query": "manual", "top_k": 0})
 
     assert response.status_code == 422
+
+
+def test_search_passes_threshold_and_metadata_filters_to_retrieval(client_with_fake_db):
+    retrieval_service = AsyncMock()
+    retrieval_service.retrieve.return_value = RetrievalResult(
+        results=[],
+        diagnostics=RetrievalDiagnostics(
+            requested_top_k=5,
+            fetch_limit=20,
+            returned_count=0,
+            score_threshold=0.72,
+            metadata_filters={"source": "manual.pdf"},
+            embedding_provider="ollama",
+            reranker_provider="none",
+            reranker_applied=False,
+        ),
+    )
+
+    with patch("app.api.routes.search.retrieval_service", retrieval_service):
+        response = client_with_fake_db.post(
+            "/search",
+            json={
+                "query": "manual",
+                "score_threshold": 0.72,
+                "metadata_filters": {"source": "manual.pdf"},
+            },
+        )
+
+    assert response.status_code == 200
+    call_kwargs = retrieval_service.retrieve.await_args.kwargs
+    assert call_kwargs["score_threshold"] == 0.72
+    assert call_kwargs["metadata_filters"] == {"source": "manual.pdf"}
+
+
+def test_search_includes_diagnostics_only_when_debug_is_enabled(
+    client_with_fake_db,
+    monkeypatch,
+):
+    retrieval_service = AsyncMock()
+    retrieval_service.retrieve.return_value = RetrievalResult(
+        results=[],
+        diagnostics=RetrievalDiagnostics(
+            requested_top_k=5,
+            fetch_limit=20,
+            returned_count=0,
+            score_threshold=0.7,
+            metadata_filters={"source": "manual.pdf"},
+            embedding_provider="ollama",
+            reranker_provider="none",
+            reranker_applied=False,
+        ),
+    )
+    monkeypatch.setattr("app.api.routes.search.settings.DEBUG", True)
+
+    with patch("app.api.routes.search.retrieval_service", retrieval_service):
+        response = client_with_fake_db.post("/search", json={"query": "manual"})
+
+    assert response.status_code == 200
+    assert response.json()["diagnostics"]["score_threshold"] == 0.7
+    assert response.json()["diagnostics"]["metadata_filters"] == {"source": "manual.pdf"}

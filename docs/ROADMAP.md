@@ -16,10 +16,9 @@
 
 ## Retrieval Quality
 
-- Add score thresholds.
-- Add metadata filters.
-- Add optional Cohere reranking.
+- Add real Cohere reranking implementation behind the reranker interface.
 - Add hybrid search with keyword + vector retrieval.
+- Add richer retrieval evaluation fixtures.
 
 ## Product Features
 

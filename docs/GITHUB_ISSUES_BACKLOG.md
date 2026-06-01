@@ -88,23 +88,23 @@ Harden the initial Alembic setup for production deployment and future schema cha
 - Existing local schema can be aligned without manual SQL editing.
 - CI validates migration configuration.
 
-## 5. Improve Retrieval Quality Controls
+## 5. Expand Retrieval Quality Controls
 
 Labels: `retrieval`, `rag-quality`, `feature`
 
 ### Summary
 
-Add retrieval tuning controls that make answers more reliable and easier to debug.
+Expand the current retrieval controls with production-grade ranking and evaluation.
 
 ### Scope
 
-- Add score threshold configuration.
-- Add metadata filters.
-- Add optional reranking integration.
-- Return retrieval diagnostics in search/chat responses when debug mode is enabled.
+- Add a real reranking provider implementation.
+- Add hybrid keyword + vector search.
+- Add retrieval quality evaluation fixtures.
+- Add latency and ranking diagnostics.
 
 ### Acceptance Criteria
 
-- Low-relevance chunks can be filtered out.
-- Search can be constrained by metadata.
-- RAG responses expose enough source information for debugging.
+- Reranking can be enabled without changing API contracts.
+- Hybrid search can improve recall for exact keywords.
+- Retrieval quality can be regression-tested.

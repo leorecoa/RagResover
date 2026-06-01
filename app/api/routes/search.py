@@ -4,24 +4,27 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.schemas.search import SearchRequest, SearchResponse
+from app.core.config import settings
 from app.db.session import get_db_session
 from app.repositories.documents import DocumentRepository
-from app.services.embeddings import embedding_service
+from app.services.retrieval import retrieval_service
 
 logger = logging.getLogger("rag_resover")
 router = APIRouter(tags=["Retrieval"])
 
 
-@router.post("/search", response_model=SearchResponse)
+@router.post("/search", response_model=SearchResponse, response_model_exclude_none=True)
 async def search_documents(
     request: SearchRequest,
     session: AsyncSession = Depends(get_db_session),
 ):
     try:
-        query_embedding = await embedding_service.embed_query(request.query)
-        results = await DocumentRepository(session).search_similar_chunks(
-            embedding=query_embedding,
-            limit=request.top_k,
+        retrieval = await retrieval_service.retrieve(
+            repository=DocumentRepository(session),
+            query=request.query,
+            top_k=request.top_k,
+            score_threshold=request.score_threshold,
+            metadata_filters=request.metadata_filters,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -40,6 +43,7 @@ async def search_documents(
                 "score": item.score,
                 "metadata": item.metadata,
             }
-            for item in results
+            for item in retrieval.results
         ],
+        "diagnostics": retrieval.diagnostics.as_dict() if settings.DEBUG else None,
     }

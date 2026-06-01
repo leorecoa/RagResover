@@ -171,6 +171,8 @@ class DocumentRepository:
         *,
         embedding: list[float],
         limit: int,
+        score_threshold: float | None = None,
+        metadata_filters: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
         result = await self.session.execute(
             text(
@@ -184,7 +186,16 @@ class DocumentRepository:
                     1 - (dc.embedding <=> CAST(:embedding AS vector)) AS score
                 FROM document_chunks dc
                 JOIN source_documents sd ON sd.id = dc.source_document_id
-                WHERE dc.embedding IS NOT NULL
+                WHERE
+                    dc.embedding IS NOT NULL
+                    AND (
+                        :score_threshold IS NULL
+                        OR 1 - (dc.embedding <=> CAST(:embedding AS vector)) >= :score_threshold
+                    )
+                    AND (
+                        :metadata_filters IS NULL
+                        OR dc.metadata @> CAST(:metadata_filters AS jsonb)
+                    )
                 ORDER BY dc.embedding <=> CAST(:embedding AS vector)
                 LIMIT :limit
                 """
@@ -192,6 +203,12 @@ class DocumentRepository:
             {
                 "embedding": serialize_vector(embedding),
                 "limit": limit,
+                "score_threshold": score_threshold,
+                "metadata_filters": (
+                    json.dumps(metadata_filters)
+                    if metadata_filters
+                    else None
+                ),
             },
         )
         rows = result.mappings().all()

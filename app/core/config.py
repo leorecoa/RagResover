@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 500
     CHUNK_OVERLAP: int = 50
     VECTOR_SEARCH_TOP_K: int = 5
+    RETRIEVAL_SCORE_THRESHOLD: Optional[float] = None
+    RETRIEVAL_FETCH_MULTIPLIER: int = 4
+    RERANKER_PROVIDER: Literal["none"] = "none"
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
     ALLOWED_UPLOAD_CONTENT_TYPES: str = (
         "text/plain,text/markdown,application/json,application/pdf,"
@@ -78,6 +81,13 @@ class Settings(BaseSettings):
             raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
         if self.VECTOR_SEARCH_TOP_K <= 0:
             raise ValueError("VECTOR_SEARCH_TOP_K must be greater than 0")
+        if (
+            self.RETRIEVAL_SCORE_THRESHOLD is not None
+            and not -1.0 <= self.RETRIEVAL_SCORE_THRESHOLD <= 1.0
+        ):
+            raise ValueError("RETRIEVAL_SCORE_THRESHOLD must be between -1.0 and 1.0")
+        if self.RETRIEVAL_FETCH_MULTIPLIER <= 0:
+            raise ValueError("RETRIEVAL_FETCH_MULTIPLIER must be greater than 0")
         if self.MAX_UPLOAD_BYTES <= 0:
             raise ValueError("MAX_UPLOAD_BYTES must be greater than 0")
         if self.EMBEDDING_DIMENSIONS <= 0:

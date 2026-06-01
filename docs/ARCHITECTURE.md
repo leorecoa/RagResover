@@ -58,6 +58,8 @@ PDF parsing preserves page metadata when text is extractable. DOCX parsing prese
 POST /search
   -> embed query
   -> vector search in document_chunks.embedding
+  -> apply optional score threshold and metadata filters
+  -> optionally pass through a reranker interface
   -> return ranked chunks
 ```
 
@@ -66,11 +68,13 @@ POST /search
 ```text
 POST /chat
   -> embed question
-  -> retrieve top chunks
+  -> retrieve top chunks with the same retrieval controls used by search
   -> build context prompt
   -> call LLM provider
   -> return answer and sources
 ```
+
+When `DEBUG=true`, search and chat responses include retrieval diagnostics with the effective threshold, metadata filters, fetch limit, embedding provider, and reranker provider.
 
 ## Data Model
 
@@ -96,6 +100,16 @@ Provider settings live in `.env`:
 LLM_PROVIDER=ollama
 EMBEDDING_PROVIDER=ollama
 ```
+
+## Retrieval Controls
+
+RagResover supports:
+
+- optional `score_threshold` per search/chat request
+- optional `RETRIEVAL_SCORE_THRESHOLD` default from `.env`
+- exact JSONB metadata filters through `metadata_filters`
+- a no-op reranker interface prepared for future providers
+- debug-only retrieval diagnostics
 
 ## Current Constraints
 
