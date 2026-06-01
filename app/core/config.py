@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     REDIS_URL: RedisDsn = "redis://localhost:6379"
     DEBUG: bool = False
     CORS_ALLOW_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+    ALLOW_ANONYMOUS_ACCESS: bool = True
+    DEFAULT_TENANT_ID: str = "anonymous"
+    API_AUTH_TOKEN: SecretStr = SecretStr("")
 
     STORAGE_ENDPOINT: str = "localhost:9000"
     STORAGE_ACCESS_KEY: str = "minioadmin"
@@ -102,6 +105,8 @@ class Settings(BaseSettings):
             raise ValueError("STORAGE_MAX_RETRIES must be greater than or equal to 0")
         if self.DATABASE_CONNECT_TIMEOUT_SECONDS <= 0:
             raise ValueError("DATABASE_CONNECT_TIMEOUT_SECONDS must be greater than 0")
+        if not self.DEFAULT_TENANT_ID.strip():
+            raise ValueError("DEFAULT_TENANT_ID must not be empty")
         if self.is_production and "*" in self.cors_origins:
             raise ValueError("CORS_ALLOW_ORIGINS cannot contain '*' in production")
         return self
@@ -137,6 +142,10 @@ class Settings(BaseSettings):
     @property
     def uses_openai(self) -> bool:
         return self.LLM_PROVIDER == "openai" or self.EMBEDDING_PROVIDER == "openai"
+
+    @property
+    def has_api_auth_token(self) -> bool:
+        return bool(self.API_AUTH_TOKEN.get_secret_value().strip())
 
 
 settings = Settings()

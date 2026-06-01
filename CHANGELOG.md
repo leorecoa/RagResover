@@ -14,3 +14,4 @@ All notable changes to RagResover should be documented in this file.
 - Initial Alembic migration environment for versioned database schema management.
 - PDF and DOCX parsing with useful source metadata for RAG chunks.
 - Retrieval score thresholds, metadata filters, debug diagnostics, and a reranker interface.
+- MVP header/token authentication and tenant isolation for upload, search, and chat.

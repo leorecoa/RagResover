@@ -8,6 +8,7 @@ from app.services.embeddings import embedding_service
 
 @dataclass(frozen=True)
 class RetrievalDiagnostics:
+    tenant_id: str
     requested_top_k: int
     fetch_limit: int
     returned_count: int
@@ -19,6 +20,7 @@ class RetrievalDiagnostics:
 
     def as_dict(self) -> dict:
         return {
+            "tenant_id": self.tenant_id,
             "requested_top_k": self.requested_top_k,
             "fetch_limit": self.fetch_limit,
             "returned_count": self.returned_count,
@@ -72,6 +74,7 @@ class RetrievalService:
         self,
         *,
         repository: DocumentRepository,
+        tenant_id: str,
         query: str,
         top_k: int,
         score_threshold: float | None = None,
@@ -87,6 +90,7 @@ class RetrievalService:
 
         query_embedding = await embedding_service.embed_query(query)
         results = await repository.search_similar_chunks(
+            tenant_id=tenant_id,
             embedding=query_embedding,
             limit=fetch_limit,
             score_threshold=effective_threshold,
@@ -103,6 +107,7 @@ class RetrievalService:
             results=final_results,
             diagnostics=RetrievalDiagnostics(
                 requested_top_k=top_k,
+                tenant_id=tenant_id,
                 fetch_limit=fetch_limit,
                 returned_count=len(final_results),
                 score_threshold=effective_threshold,

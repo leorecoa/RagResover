@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.auth import TenantContext, get_tenant_context
 from app.api.schemas.ingestion import UploadResponse
 from app.core.config import settings
 from app.db.session import get_db_session
@@ -37,6 +38,7 @@ def validate_upload(file: UploadFile) -> tuple[str, str]:
 async def upload_document(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_db_session),
+    tenant: TenantContext = Depends(get_tenant_context),
 ):
     file_name, content_type = validate_upload(file)
     logger.info("Recebendo arquivo: %s (%s)", file_name, content_type)
@@ -69,6 +71,7 @@ async def upload_document(
             storage_path=ingestion_result.storage_path,
             chunks=ingestion_result.chunks,
             embeddings=embeddings,
+            tenant_id=tenant.tenant_id,
         )
 
         return {

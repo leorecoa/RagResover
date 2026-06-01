@@ -27,7 +27,7 @@ npm run serve
 Before selling this as a hosted product, add or configure:
 
 - Real authentication and authorization.
-- Per-user or per-organization tenant isolation.
+- Hardened user membership checks beyond the MVP tenant header.
 - Strong Postgres and MinIO credentials.
 - HTTPS/TLS at the edge.
 - Restricted CORS origins.
@@ -49,6 +49,8 @@ STORAGE_REQUIRED=true
 DATABASE_URL=postgresql+asyncpg://...
 STORAGE_ACCESS_KEY=...
 STORAGE_SECRET_KEY=...
+ALLOW_ANONYMOUS_ACCESS=false
+API_AUTH_TOKEN=change-this-token
 ```
 
 Run migrations during deploy:

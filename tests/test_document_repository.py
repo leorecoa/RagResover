@@ -30,6 +30,7 @@ def test_search_similar_chunks_applies_threshold_and_metadata_filters():
 
     async def call_repository():
         return await repository.search_similar_chunks(
+            tenant_id="tenant-a",
             embedding=[0.1, 0.2],
             limit=10,
             score_threshold=0.74,
@@ -40,6 +41,9 @@ def test_search_similar_chunks_applies_threshold_and_metadata_filters():
 
     assert results == []
     assert "dc.metadata @> CAST(:metadata_filters AS jsonb)" in str(session.statement)
+    assert "dc.tenant_id = :tenant_id" in str(session.statement)
+    assert "sd.tenant_id = :tenant_id" in str(session.statement)
     assert "score_threshold" in str(session.statement)
+    assert session.params["tenant_id"] == "tenant-a"
     assert session.params["score_threshold"] == 0.74
     assert session.params["metadata_filters"] == '{"source": "manual.pdf", "page": 1}'

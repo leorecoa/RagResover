@@ -10,6 +10,7 @@ def test_chat_returns_answer_with_sources(client_with_fake_db):
     search_result = SearchResult(
         chunk_id=UUID("44444444-4444-4444-4444-444444444444"),
         document_id=UUID("55555555-5555-5555-5555-555555555555"),
+        tenant_id="tenant-a",
         file_name="policy.md",
         content="Politica interna recuperada",
         score=0.88,
@@ -21,6 +22,7 @@ def test_chat_returns_answer_with_sources(client_with_fake_db):
     retrieval_service.retrieve.return_value = RetrievalResult(
         results=[search_result],
         diagnostics=RetrievalDiagnostics(
+            tenant_id="anonymous",
             requested_top_k=2,
             fetch_limit=8,
             returned_count=1,
@@ -58,6 +60,7 @@ def test_chat_returns_clear_message_when_no_context_is_found(client_with_fake_db
     retrieval_service.retrieve.return_value = RetrievalResult(
         results=[],
         diagnostics=RetrievalDiagnostics(
+            tenant_id="anonymous",
             requested_top_k=5,
             fetch_limit=20,
             returned_count=0,
@@ -103,6 +106,7 @@ def test_chat_includes_retrieval_diagnostics_when_debug_is_enabled(
     retrieval_service.retrieve.return_value = RetrievalResult(
         results=[],
         diagnostics=RetrievalDiagnostics(
+            tenant_id="anonymous",
             requested_top_k=5,
             fetch_limit=20,
             returned_count=0,
@@ -128,3 +132,31 @@ def test_chat_includes_retrieval_diagnostics_when_debug_is_enabled(
     assert response.status_code == 200
     assert response.json()["diagnostics"]["score_threshold"] == 0.8
     assert response.json()["diagnostics"]["metadata_filters"] == {"section": "Policy"}
+
+
+def test_chat_uses_tenant_header_for_retrieval(client_with_fake_db):
+    retrieval_service = AsyncMock()
+    retrieval_service.retrieve.return_value = RetrievalResult(
+        results=[],
+        diagnostics=RetrievalDiagnostics(
+            tenant_id="tenant-b",
+            requested_top_k=5,
+            fetch_limit=20,
+            returned_count=0,
+            score_threshold=None,
+            metadata_filters={},
+            embedding_provider="ollama",
+            reranker_provider="none",
+            reranker_applied=False,
+        ),
+    )
+
+    with patch("app.api.routes.chat.retrieval_service", retrieval_service):
+        response = client_with_fake_db.post(
+            "/chat",
+            json={"question": "Existe contexto?"},
+            headers={"X-Tenant-ID": "tenant-b"},
+        )
+
+    assert response.status_code == 200
+    assert retrieval_service.retrieve.await_args.kwargs["tenant_id"] == "tenant-b"
