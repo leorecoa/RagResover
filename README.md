@@ -20,7 +20,7 @@
 
 RagResover is a local-first Retrieval-Augmented Generation platform for indexing private documents and asking questions over them with cited sources.
 
-It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a lightweight web UI for upload, semantic search, and chat.
+It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a React/Vite web UI for upload, semantic search, and chat.
 
 ## Highlights
 
@@ -35,7 +35,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 - Provider switch between OpenAI and local Ollama
 - Docker Compose stack for local development
 - Alembic migrations for versioned database schema changes
-- Static frontend for demos and manual usage
+- React/Vite frontend for demos and manual usage
 
 ## Architecture
 
@@ -93,7 +93,7 @@ docker compose up --build
 
 ```powershell
 cd frontend
-npm run serve
+npm run dev
 ```
 
 5. Open:
@@ -136,14 +136,21 @@ Upload, search, and chat accept `X-Tenant-ID` to isolate documents by tenant. An
 
 ## Frontend
 
-The static frontend in `frontend/` includes:
+The React/Vite frontend in `frontend/` includes:
 
 - API readiness panel
 - document upload
 - semantic search
 - chat with source display
 
-It does not require a build step.
+Useful frontend commands:
+
+```powershell
+cd frontend
+npm run dev
+npm run build
+npm run preview
+```
 
 ## Development
 
