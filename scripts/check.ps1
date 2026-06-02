@@ -22,9 +22,14 @@ if ($alembicExitCode -ne 0) {
 Write-Host "Checking Python dependencies..."
 venv\Scripts\pip.exe check
 
-Write-Host "Checking frontend JavaScript..."
-node --check frontend\app.js
-node --check frontend\server.js
+Write-Host "Checking frontend build..."
+Push-Location frontend
+try {
+    npm.cmd run build
+}
+finally {
+    Pop-Location
+}
 
 Write-Host "Checking PowerShell scripts..."
 [void][scriptblock]::Create((Get-Content scripts\demo_flow.ps1 -Raw))

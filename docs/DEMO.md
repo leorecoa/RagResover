@@ -61,7 +61,7 @@ Optional frontend:
 
 ```powershell
 cd frontend
-npm run serve
+npm run dev
 ```
 
 Open:

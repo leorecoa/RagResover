@@ -22,6 +22,10 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
       - name: Compile Python
         run: python -m compileall -q app migrations tests main.py config.py ingestion_service.py storage_service.py
 
@@ -37,10 +41,9 @@ jobs:
       - name: Check Python dependencies
         run: pip check
 
-      - name: Check frontend JavaScript
-        run: |
-          node --check frontend/app.js
-          node --check frontend/server.js
+      - name: Check frontend build
+        working-directory: frontend
+        run: npm run build
 
       - name: Check PowerShell scripts
         shell: pwsh
