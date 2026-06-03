@@ -8,7 +8,7 @@ import type {
   ReadyResponse,
   RetrievalDiagnostics,
   SearchResponse,
-  UploadResponse,
+  UploadJobResponse,
 } from "./lib/types";
 import { createActivityId, getProviderLabel } from "./lib/utils";
 import { AppShell } from "./components/layout/AppShell";
@@ -141,12 +141,12 @@ export default function App() {
     [],
   );
 
-  const handleUploaded = useCallback(
-    (response: UploadResponse) => {
+  const handleUploadCompleted = useCallback(
+    (response: UploadJobResponse) => {
       setDocumentsCount((current) => current + 1);
       addActivity({
         label: `Upload: ${response.filename}`,
-        detail: `${response.chunks_count} chunks indexados`,
+        detail: `Job ${response.status} com documento ${response.document_id ?? "pendente"}`,
         tone: "emerald",
       });
     },
@@ -214,7 +214,13 @@ export default function App() {
           />
         );
       case "upload":
-        return <Upload {...requestOptions} onUploaded={handleUploaded} />;
+        return (
+          <Upload
+            {...requestOptions}
+            onCompleted={handleUploadCompleted}
+            onOpenDocuments={() => setCurrentPage("documents")}
+          />
+        );
       case "documents":
         return <Documents {...requestOptions} onDeleted={handleDeleted} />;
       case "search":
@@ -246,7 +252,7 @@ export default function App() {
     handleDiagnostics,
     handleDeleted,
     handleSearched,
-    handleUploaded,
+    handleUploadCompleted,
     health,
     isRefreshing,
     ready,

@@ -1,11 +1,26 @@
-from unittest.mock import AsyncMock, patch
+from datetime import datetime
 from uuid import UUID
 
-from langchain_core.documents import Document
+from app.repositories.ingestion_jobs import IngestionJobRecord
 
-from app.repositories.documents import PersistedIngestion
-from app.services.ingestion import IngestionResult
-from app.services.parsing import DocumentParsingError
+
+JOB_ID = UUID("11111111-1111-1111-1111-111111111111")
+DOCUMENT_ID = UUID("22222222-2222-2222-2222-222222222222")
+
+
+def make_job(status="pending", tenant_id="anonymous", document_id=None, error_message=None):
+    return IngestionJobRecord(
+        id=JOB_ID,
+        tenant_id=tenant_id,
+        file_name="note.txt",
+        content_type="text/plain",
+        file_size=6,
+        status=status,
+        error_message=error_message,
+        document_id=document_id,
+        created_at=datetime(2026, 6, 1, 12, 0, 0),
+        updated_at=datetime(2026, 6, 1, 12, 0, 0),
+    )
 
 
 def test_upload_rejects_unsupported_content_type(client_with_fake_db):
@@ -18,60 +33,6 @@ def test_upload_rejects_unsupported_content_type(client_with_fake_db):
     assert "Tipo de arquivo nao suportado" in response.json()["detail"]
 
 
-def test_upload_accepts_pdf_and_docx_content_types_with_mocked_services(
-    client_with_fake_db,
-    monkeypatch,
-):
-    monkeypatch.setattr(
-        "app.api.routes.ingestion.settings.ALLOWED_UPLOAD_CONTENT_TYPES",
-        (
-            "text/plain,text/markdown,application/json,application/pdf,"
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        ),
-    )
-    document_id = UUID("11111111-1111-1111-1111-111111111111")
-    chunk = Document(page_content="Conteudo extraido", metadata={"source": "documento"})
-    ingestion_service = AsyncMock()
-    ingestion_service.ingest_raw_file.return_value = IngestionResult(
-        chunks=[chunk],
-        storage_path="s3://documents/documento",
-        file_size=16,
-    )
-    embedding_service = AsyncMock()
-    embedding_service.embed_texts.return_value = [[0.1, 0.2]]
-
-    class FakeDocumentRepository:
-        def __init__(self, session):
-            self.session = session
-
-        async def persist_ingestion(self, **kwargs):
-            return PersistedIngestion(document_id=document_id, chunks_count=1)
-
-    with (
-        patch("app.api.routes.ingestion.ingestion_service", ingestion_service),
-        patch("app.api.routes.ingestion.embedding_service", embedding_service),
-        patch("app.api.routes.ingestion.DocumentRepository", FakeDocumentRepository),
-    ):
-        pdf_response = client_with_fake_db.post(
-            "/upload",
-            files={"file": ("manual.pdf", b"fake pdf payload", "application/pdf")},
-        )
-        docx_response = client_with_fake_db.post(
-            "/upload",
-            files={
-                "file": (
-                    "manual.docx",
-                    b"fake docx payload",
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                )
-            },
-        )
-
-    assert pdf_response.status_code == 200
-    assert docx_response.status_code == 200
-    assert ingestion_service.ingest_raw_file.await_count == 2
-
-
 def test_upload_rejects_empty_file(client_with_fake_db):
     response = client_with_fake_db.post(
         "/upload",
@@ -82,115 +43,180 @@ def test_upload_rejects_empty_file(client_with_fake_db):
     assert response.json()["detail"] == "Arquivo vazio nao pode ser processado."
 
 
-def test_upload_returns_clear_error_when_document_cannot_be_parsed(
+def test_upload_creates_job_and_schedules_background_processing(
     client_with_fake_db,
     monkeypatch,
 ):
-    monkeypatch.setattr(
-        "app.api.routes.ingestion.settings.ALLOWED_UPLOAD_CONTENT_TYPES",
-        "application/pdf",
-    )
-    ingestion_service = AsyncMock()
-    ingestion_service.ingest_raw_file.side_effect = DocumentParsingError(
-        "Arquivo PDF invalido, corrompido ou ilegivel."
-    )
-
-    with patch("app.api.routes.ingestion.ingestion_service", ingestion_service):
-        response = client_with_fake_db.post(
-            "/upload",
-            files={"file": ("broken.pdf", b"%PDF-broken", "application/pdf")},
-        )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Arquivo PDF invalido, corrompido ou ilegivel."
-
-
-def test_upload_processes_valid_text_file_with_mocked_services(client_with_fake_db):
-    document_id = UUID("11111111-1111-1111-1111-111111111111")
-    chunks = [
-        Document(page_content="Primeiro trecho", metadata={"source": "note.txt"}),
-        Document(page_content="Segundo trecho", metadata={"source": "note.txt"}),
-    ]
-    ingestion_service = AsyncMock()
-    ingestion_service.ingest_raw_file.return_value = IngestionResult(
-        chunks=chunks,
-        storage_path="s3://documents/note.txt",
-        file_size=27,
-    )
-    embedding_service = AsyncMock()
-    embedding_service.embed_texts.return_value = [[0.1, 0.2], [0.3, 0.4]]
     captured = {}
 
-    class FakeDocumentRepository:
+    class FakeIngestionJobRepository:
         def __init__(self, session):
             captured["session"] = session
 
-        async def persist_ingestion(self, **kwargs):
-            captured.update(kwargs)
-            return PersistedIngestion(
-                document_id=document_id,
-                chunks_count=len(kwargs["chunks"]),
+        async def create_job(self, **kwargs):
+            captured["job_kwargs"] = kwargs
+            return make_job(
+                tenant_id=kwargs["tenant_id"],
             )
 
-    with (
-        patch("app.api.routes.ingestion.ingestion_service", ingestion_service),
-        patch("app.api.routes.ingestion.embedding_service", embedding_service),
-        patch("app.api.routes.ingestion.DocumentRepository", FakeDocumentRepository),
-    ):
-        response = client_with_fake_db.post(
-            "/upload",
-            files={"file": ("note.txt", b"Primeiro trecho\nSegundo trecho", "text/plain")},
-        )
+    async def fake_process_upload_job(**kwargs):
+        captured["background_kwargs"] = kwargs
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "document_id": str(document_id),
-        "filename": "note.txt",
-        "status": "success",
-        "chunks_count": 2,
-        "message": "Documento processado e pronto para indexacao.",
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.process_upload_job",
+        fake_process_upload_job,
+    )
+
+    response = client_with_fake_db.post(
+        "/upload",
+        files={"file": ("note.txt", b"Trecho", "text/plain")},
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 202
+    assert response.json()["job_id"] == str(JOB_ID)
+    assert response.json()["status"] == "pending"
+    assert response.json()["document_id"] is None
+    assert captured["job_kwargs"] == {
+        "tenant_id": "tenant-a",
+        "file_name": "note.txt",
+        "content_type": "text/plain",
+        "file_size": 6,
     }
-    ingestion_service.ingest_raw_file.assert_awaited_once()
-    embedding_service.embed_texts.assert_awaited_once_with(
-        ["Primeiro trecho", "Segundo trecho"]
-    )
-    assert captured["file_name"] == "note.txt"
-    assert captured["content_type"] == "text/plain"
-    assert captured["tenant_id"] == "anonymous"
-    assert captured["embeddings"] == [[0.1, 0.2], [0.3, 0.4]]
+    assert captured["background_kwargs"]["job_id"] == JOB_ID
+    assert captured["background_kwargs"]["tenant_id"] == "tenant-a"
+    assert captured["background_kwargs"]["file_bytes"] == b"Trecho"
 
 
-def test_upload_persists_document_with_tenant_header(client_with_fake_db):
-    document_id = UUID("11111111-1111-1111-1111-111111111111")
-    chunks = [Document(page_content="Trecho", metadata={"source": "note.txt"})]
-    ingestion_service = AsyncMock()
-    ingestion_service.ingest_raw_file.return_value = IngestionResult(
-        chunks=chunks,
-        storage_path="s3://documents/note.txt",
-        file_size=6,
-    )
-    embedding_service = AsyncMock()
-    embedding_service.embed_texts.return_value = [[0.1, 0.2]]
-    captured = {}
+def test_upload_accepts_pdf_and_docx_content_types(
+    client_with_fake_db,
+    monkeypatch,
+):
+    created_jobs = []
 
-    class FakeDocumentRepository:
+    class FakeIngestionJobRepository:
         def __init__(self, session):
             self.session = session
 
-        async def persist_ingestion(self, **kwargs):
-            captured.update(kwargs)
-            return PersistedIngestion(document_id=document_id, chunks_count=1)
+        async def create_job(self, **kwargs):
+            created_jobs.append(kwargs)
+            return make_job(
+                tenant_id=kwargs["tenant_id"],
+            )
 
-    with (
-        patch("app.api.routes.ingestion.ingestion_service", ingestion_service),
-        patch("app.api.routes.ingestion.embedding_service", embedding_service),
-        patch("app.api.routes.ingestion.DocumentRepository", FakeDocumentRepository),
-    ):
-        response = client_with_fake_db.post(
-            "/upload",
-            files={"file": ("note.txt", b"Trecho", "text/plain")},
-            headers={"X-Tenant-ID": "tenant-a"},
-        )
+    async def fake_process_upload_job(**kwargs):
+        return None
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.process_upload_job",
+        fake_process_upload_job,
+    )
+
+    pdf_response = client_with_fake_db.post(
+        "/upload",
+        files={"file": ("manual.pdf", b"fake pdf payload", "application/pdf")},
+    )
+    docx_response = client_with_fake_db.post(
+        "/upload",
+        files={
+            "file": (
+                "manual.docx",
+                b"fake docx payload",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert pdf_response.status_code == 202
+    assert docx_response.status_code == 202
+    assert created_jobs[0]["content_type"] == "application/pdf"
+    assert (
+        created_jobs[1]["content_type"]
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+
+def test_list_upload_jobs_returns_tenant_jobs(client_with_fake_db, monkeypatch):
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def list_jobs(self, **kwargs):
+            assert kwargs["tenant_id"] == "tenant-a"
+            assert kwargs["limit"] == 25
+            return [make_job(status="completed", tenant_id="tenant-a", document_id=DOCUMENT_ID)]
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.get(
+        "/uploads?limit=25",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
 
     assert response.status_code == 200
-    assert captured["tenant_id"] == "tenant-a"
+    payload = response.json()
+    assert payload["uploads"][0]["status"] == "completed"
+    assert payload["uploads"][0]["document_id"] == str(DOCUMENT_ID)
+    assert payload["uploads"][0]["tenant_id"] == "tenant-a"
+
+
+def test_get_upload_job_returns_404_for_other_tenant(client_with_fake_db, monkeypatch):
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            assert kwargs["tenant_id"] == "tenant-a"
+            return None
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.get(
+        f"/uploads/{JOB_ID}",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Upload job nao encontrado."
+
+
+def test_get_upload_job_returns_failed_error_message(client_with_fake_db, monkeypatch):
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            assert kwargs["tenant_id"] == "tenant-a"
+            return make_job(
+                status="failed",
+                tenant_id="tenant-a",
+                error_message="Arquivo PDF invalido.",
+            )
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.get(
+        f"/uploads/{JOB_ID}",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert response.json()["error_message"] == "Arquivo PDF invalido."

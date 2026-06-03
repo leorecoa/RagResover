@@ -1,16 +1,16 @@
 import logging
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import TenantContext, get_tenant_context
-from app.api.schemas.ingestion import UploadResponse
+from app.api.schemas.ingestion import UploadJobListResponse, UploadJobResponse, UploadResponse
 from app.core.config import settings
 from app.db.session import get_db_session
-from app.repositories.documents import DocumentRepository
-from app.services.embeddings import embedding_service
-from app.services.ingestion import ingestion_service
-from app.services.parsing import DocumentParsingError, UnsupportedDocumentTypeError
+from app.repositories.ingestion_jobs import IngestionJobRecord, IngestionJobRepository
+from app.services.parsing import UnsupportedDocumentTypeError
+from app.services.upload_jobs import process_upload_job
 
 logger = logging.getLogger("rag_resover")
 router = APIRouter(tags=["Ingestion"])
@@ -34,8 +34,35 @@ def validate_upload(file: UploadFile) -> tuple[str, str]:
     return file.filename, content_type
 
 
-@router.post("/upload", response_model=UploadResponse)
+def upload_job_payload(job: IngestionJobRecord, message: str | None = None) -> dict:
+    return {
+        "job_id": str(job.id),
+        "filename": job.file_name,
+        "content_type": job.content_type,
+        "file_size": job.file_size,
+        "status": job.status,
+        "tenant_id": job.tenant_id,
+        "error_message": job.error_message,
+        "document_id": str(job.document_id) if job.document_id else None,
+        "created_at": job.created_at,
+        "updated_at": job.updated_at,
+        "message": message or "Upload recebido para processamento.",
+    }
+
+
+def parse_job_id(job_id: str) -> UUID:
+    try:
+        return UUID(job_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload job nao encontrado.",
+        ) from exc
+
+
+@router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_db_session),
     tenant: TenantContext = Depends(get_tenant_context),
@@ -56,37 +83,26 @@ async def upload_document(
                 detail="Arquivo excede o tamanho maximo permitido.",
             )
 
-        ingestion_result = await ingestion_service.ingest_raw_file(
+        job = await IngestionJobRepository(session).create_job(
+            tenant_id=tenant.tenant_id,
+            file_name=file_name,
+            content_type=content_type,
+            file_size=len(file_bytes),
+        )
+        background_tasks.add_task(
+            process_upload_job,
+            job_id=job.id,
+            tenant_id=tenant.tenant_id,
             file_name=file_name,
             file_bytes=file_bytes,
             content_type=content_type,
         )
-        embeddings = await embedding_service.embed_texts(
-            [chunk.page_content for chunk in ingestion_result.chunks]
-        )
-        persisted = await DocumentRepository(session).persist_ingestion(
-            file_name=file_name,
-            content_type=content_type,
-            file_size=ingestion_result.file_size,
-            storage_path=ingestion_result.storage_path,
-            chunks=ingestion_result.chunks,
-            embeddings=embeddings,
-            tenant_id=tenant.tenant_id,
-        )
 
-        return {
-            "document_id": str(persisted.document_id),
-            "filename": file_name,
-            "status": "success",
-            "chunks_count": persisted.chunks_count,
-            "message": "Documento processado e pronto para indexacao.",
-        }
+        return upload_job_payload(job)
     except HTTPException:
         raise
     except UnsupportedDocumentTypeError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
-    except DocumentParsingError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         logger.exception("Erro ao processar upload %s", file_name)
         raise HTTPException(
@@ -95,3 +111,34 @@ async def upload_document(
         ) from None
     finally:
         await file.close()
+
+
+@router.get("/uploads", response_model=UploadJobListResponse)
+async def list_upload_jobs(
+    limit: int = Query(default=50, ge=1, le=100),
+    session: AsyncSession = Depends(get_db_session),
+    tenant: TenantContext = Depends(get_tenant_context),
+):
+    jobs = await IngestionJobRepository(session).list_jobs(
+        tenant_id=tenant.tenant_id,
+        limit=limit,
+    )
+    return {"uploads": [upload_job_payload(job) for job in jobs]}
+
+
+@router.get("/uploads/{job_id}", response_model=UploadJobResponse)
+async def get_upload_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    tenant: TenantContext = Depends(get_tenant_context),
+):
+    job = await IngestionJobRepository(session).get_job(
+        tenant_id=tenant.tenant_id,
+        job_id=parse_job_id(job_id),
+    )
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload job nao encontrado.",
+        )
+    return upload_job_payload(job)

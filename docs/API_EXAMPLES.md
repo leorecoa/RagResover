@@ -46,12 +46,50 @@ Example response:
 
 ```json
 {
-  "document_id": "67a96a52-3b77-4efa-b6eb-e065ca66c4f4",
+  "job_id": "d7cefc92-9a7f-4ca3-9b52-b6e68853218e",
   "filename": "README.md",
-  "status": "success",
-  "chunks_count": 7,
-  "message": "Documento processado e pronto para indexacao."
+  "content_type": "text/markdown",
+  "file_size": 4096,
+  "status": "pending",
+  "tenant_id": "tenant-demo",
+  "error_message": null,
+  "document_id": null,
+  "created_at": "2026-06-03T12:00:00",
+  "updated_at": "2026-06-03T12:00:00",
+  "message": "Upload recebido para processamento."
 }
+```
+
+Poll job status:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/uploads/d7cefc92-9a7f-4ca3-9b52-b6e68853218e `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Completed response:
+
+```json
+{
+  "job_id": "d7cefc92-9a7f-4ca3-9b52-b6e68853218e",
+  "filename": "README.md",
+  "content_type": "text/markdown",
+  "file_size": 4096,
+  "status": "completed",
+  "tenant_id": "tenant-demo",
+  "error_message": null,
+  "document_id": "67a96a52-3b77-4efa-b6eb-e065ca66c4f4",
+  "created_at": "2026-06-03T12:00:00",
+  "updated_at": "2026-06-03T12:00:04",
+  "message": "Upload recebido para processamento."
+}
+```
+
+List recent upload jobs for the tenant:
+
+```powershell
+Invoke-RestMethod "http://localhost:8000/uploads?limit=20" `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
 ```
 
 ## Search

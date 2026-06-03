@@ -10,6 +10,8 @@ import type {
   ReadyResponse,
   SearchRequest,
   SearchResponse,
+  UploadJobListResponse,
+  UploadJobResponse,
   UploadResponse,
 } from "./types";
 
@@ -105,6 +107,20 @@ export function uploadDocument(
     },
     options,
   );
+}
+
+export function getUploadJob(
+  jobId: string,
+  options?: ApiRequestOptions,
+): Promise<UploadJobResponse> {
+  return requestJson<UploadJobResponse>(`/uploads/${jobId}`, undefined, options);
+}
+
+export function listUploadJobs(
+  options?: ApiRequestOptions,
+  limit = 50,
+): Promise<UploadJobListResponse> {
+  return requestJson<UploadJobListResponse>(`/uploads?limit=${limit}`, undefined, options);
 }
 
 export function listDocuments(

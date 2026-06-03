@@ -49,17 +49,47 @@ test("renders dashboard status and global tenant controls", async ({ page }) => 
 });
 
 test("uploads a document with tenant and token headers", async ({ page }) => {
+  let statusCalls = 0;
+
   await page.route("**/upload", async (route) => {
     expectTenantHeaders(route.request());
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({
+        job_id: "job-upload-1",
+        filename: "policy.pdf",
+        content_type: "application/pdf",
+        file_size: 2048,
+        status: "pending",
+        tenant_id: "tenant-alpha",
+        error_message: null,
+        document_id: null,
+        created_at: "2026-06-03T12:00:00",
+        updated_at: "2026-06-03T12:00:00",
+        message: "Upload recebido para processamento.",
+      }),
+    });
+  });
+
+  await page.route("**/uploads/job-upload-1", async (route) => {
+    expectTenantHeaders(route.request());
+    statusCalls += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        document_id: "doc-upload-1",
+        job_id: "job-upload-1",
         filename: "policy.pdf",
-        status: "success",
-        chunks_count: 3,
-        message: "Documento processado e pronto para indexacao.",
+        content_type: "application/pdf",
+        file_size: 2048,
+        status: statusCalls > 1 ? "completed" : "processing",
+        tenant_id: "tenant-alpha",
+        error_message: null,
+        document_id: statusCalls > 1 ? "doc-upload-1" : null,
+        created_at: "2026-06-03T12:00:00",
+        updated_at: "2026-06-03T12:00:01",
+        message: "Upload recebido para processamento.",
       }),
     });
   });
@@ -76,9 +106,12 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
   });
   await page.getByRole("button", { name: "Indexar documento" }).click();
 
-  await expect(page.getByText("Documento indexado")).toBeVisible();
+  await expect(page.getByText("Upload completed")).toBeVisible();
   await expect(page.getByText("policy.pdf").first()).toBeVisible();
-  await expect(page.getByText("3").first()).toBeVisible();
+  await expect(page.getByText("completed").first()).toBeVisible();
+  await expect(page.getByText("doc-upload-1").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Abrir Documents" })).toBeVisible();
+  expect(statusCalls).toBeGreaterThan(1);
 });
 
 test("manages documents with details, chunks, filters and delete", async ({ page }) => {

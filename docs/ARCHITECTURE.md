@@ -47,11 +47,22 @@ migrations
 POST /upload
   -> resolve tenant from headers/config
   -> validate file
+  -> create ingestion_jobs row with status pending
+  -> schedule background processing task
+  -> return 202 Accepted with job_id
+
+Background upload task
+  -> mark job processing
   -> upload raw file to MinIO
   -> parse text, PDF, or DOCX content
   -> split into chunks
   -> generate embeddings
   -> persist source document and chunks in Postgres
+  -> mark job completed with document_id or failed with error_message
+
+GET /uploads/{job_id}
+  -> resolve tenant from headers/config
+  -> return status only when tenant_id matches
 ```
 
 PDF parsing preserves page metadata when text is extractable. DOCX parsing preserves paragraph metadata and section headings when available.
@@ -113,12 +124,13 @@ Primary tables are managed through Alembic migrations:
 
 - `source_documents`: one row per uploaded file.
 - `document_chunks`: one row per chunk with optional vector embedding.
+- `ingestion_jobs`: one row per async upload request and processing status.
 - `conversations`: reserved for future chat history.
 - `messages`: reserved for future chat messages.
 
 `scripts/init_db.sql` only bootstraps PostgreSQL extensions and schema search path for local Docker startup.
 
-Tenant isolation is stored in `tenant_id` columns. Upload writes the current tenant into `source_documents` and `document_chunks`; document management, search, and chat filter by that same tenant before returning data.
+Tenant isolation is stored in `tenant_id` columns. Upload jobs, source documents, and chunks are written with the current tenant; upload status, document management, search, and chat filter by that same tenant before returning data.
 
 ## Authentication
 
@@ -156,6 +168,7 @@ RagResover supports:
 ## Current Constraints
 
 - Upload reads the whole file into memory.
+- Async upload processing uses FastAPI background tasks for the MVP, not a durable queue yet.
 - Scanned PDFs without embedded text are not OCR-processed yet.
 - HTML parsing is not implemented yet.
 - Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.
