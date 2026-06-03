@@ -24,7 +24,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 
 ## Highlights
 
-- Document upload with validation and raw-file storage in MinIO
+- Async document upload with observable processing status
 - Tenant-scoped document management with detail, chunk inspection, and delete
 - Text extraction for TXT, Markdown, JSON, PDF, and DOCX
 - Text chunking with LangChain text splitters
@@ -125,7 +125,9 @@ Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
 | --- | --- | --- |
 | GET | `/health` | Lightweight liveness check |
 | GET | `/ready` | Dependency readiness check |
-| POST | `/upload` | Upload and index a document |
+| POST | `/upload` | Create an async upload processing job |
+| GET | `/uploads` | List upload jobs for the current tenant |
+| GET | `/uploads/{job_id}` | Inspect one upload job status |
 | GET | `/documents` | List indexed documents for the current tenant |
 | GET | `/documents/{document_id}` | Inspect one tenant-scoped document |
 | GET | `/documents/{document_id}/chunks` | Inspect paginated chunks for a document |
@@ -137,14 +139,16 @@ Examples: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md).
 
 Search and chat accept optional `score_threshold` and `metadata_filters` fields. When `DEBUG=true`, responses include retrieval diagnostics such as fetch size, effective threshold, filters, embedding provider, and reranker provider.
 
-Upload, search, and chat accept `X-Tenant-ID` to isolate documents by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`.
+Upload now returns `202 Accepted` with a `job_id`. Poll `GET /uploads/{job_id}` until the status is `completed` or `failed`; completed jobs include the indexed `document_id`.
+
+Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`.
 
 ## Frontend
 
 The React/Vite frontend in `frontend/` includes:
 
 - API readiness panel
-- document upload
+- async document upload with processing status
 - document management with metadata and chunk inspection
 - semantic search
 - chat with source display

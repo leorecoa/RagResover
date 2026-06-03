@@ -114,6 +114,38 @@ function Invoke-DemoUpload {
     }
 }
 
+function Wait-DemoUploadJob {
+    param(
+        [object]$Job,
+        [string]$Tenant,
+        [int]$TimeoutSeconds = 120
+    )
+
+    if (-not $Job.job_id) {
+        return $Job
+    }
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $current = Invoke-JsonRequest `
+            -Method "GET" `
+            -Path "/uploads/$($Job.job_id)" `
+            -Tenant $Tenant
+
+        if ($current.status -eq "completed") {
+            return $current
+        }
+
+        if ($current.status -eq "failed") {
+            throw "Upload job $($Job.job_id) failed: $($current.error_message)"
+        }
+
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Upload job $($Job.job_id) did not finish within $TimeoutSeconds seconds."
+}
+
 function Show-DemoJson {
     param(
         [string]$Title,
@@ -278,6 +310,8 @@ $pdfUpload = Invoke-DemoUpload `
     -ContentType "application/pdf" `
     -Tenant $TenantId
 Show-DemoJson -Title "PDF upload response" -Value $pdfUpload
+$pdfUpload = Wait-DemoUploadJob -Job $pdfUpload -Tenant $TenantId
+Show-DemoJson -Title "PDF upload job completed" -Value $pdfUpload
 
 Write-Step "Uploading DOCX for $TenantId"
 $docxUpload = Invoke-DemoUpload `
@@ -285,6 +319,8 @@ $docxUpload = Invoke-DemoUpload `
     -ContentType "application/vnd.openxmlformats-officedocument.wordprocessingml.document" `
     -Tenant $TenantId
 Show-DemoJson -Title "DOCX upload response" -Value $docxUpload
+$docxUpload = Wait-DemoUploadJob -Job $docxUpload -Tenant $TenantId
+Show-DemoJson -Title "DOCX upload job completed" -Value $docxUpload
 
 Write-Step "Searching indexed PDF with metadata filter and diagnostics"
 $pdfSearch = Invoke-JsonRequest `
@@ -342,6 +378,8 @@ $otherUpload = Invoke-DemoUpload `
     -ContentType "text/plain" `
     -Tenant $OtherTenantId
 Show-DemoJson -Title "Other tenant upload response" -Value $otherUpload
+$otherUpload = Wait-DemoUploadJob -Job $otherUpload -Tenant $OtherTenantId
+Show-DemoJson -Title "Other tenant upload job completed" -Value $otherUpload
 
 Write-Step "Verifying $TenantId cannot retrieve $OtherTenantId data"
 $isolationMiss = Invoke-JsonRequest `

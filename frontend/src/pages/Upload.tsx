@@ -1,16 +1,23 @@
-import type { ApiRequestOptions, UploadResponse } from "../lib/types";
+import type { ApiRequestOptions, UploadJobResponse } from "../lib/types";
 import { UploadPanel } from "../components/rag/UploadPanel";
 
 interface UploadProps extends ApiRequestOptions {
-  onUploaded: (response: UploadResponse) => void;
+  onCompleted: (response: UploadJobResponse) => void;
+  onOpenDocuments: () => void;
 }
 
-export function Upload({ tenantId, apiToken, onUploaded }: UploadProps) {
+export function Upload({
+  tenantId,
+  apiToken,
+  onCompleted,
+  onOpenDocuments,
+}: UploadProps) {
   return (
     <UploadPanel
       tenantId={tenantId}
       apiToken={apiToken}
-      onUploaded={onUploaded}
+      onCompleted={onCompleted}
+      onOpenDocuments={onOpenDocuments}
     />
   );
 }

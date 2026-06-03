@@ -19,12 +19,26 @@ export interface ReadyResponse {
   version: string;
 }
 
-export interface UploadResponse {
-  document_id: string;
+export type UploadJobStatus = "pending" | "processing" | "completed" | "failed";
+
+export interface UploadJobResponse {
+  job_id: string;
   filename: string;
-  status: string;
-  chunks_count: number;
+  content_type: string;
+  file_size: number;
+  status: UploadJobStatus;
+  tenant_id: string;
+  error_message?: string | null;
+  document_id?: string | null;
+  created_at: string;
+  updated_at: string;
   message: string;
+}
+
+export type UploadResponse = UploadJobResponse;
+
+export interface UploadJobListResponse {
+  uploads: UploadJobResponse[];
 }
 
 export interface DocumentItem {

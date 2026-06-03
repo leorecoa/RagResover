@@ -95,7 +95,9 @@ Then it performs:
 - `GET /health`
 - `GET /ready`
 - `POST /upload` for PDF with `X-Tenant-ID: tenant-demo`
+- `GET /uploads/{job_id}` until the PDF job is `completed`
 - `POST /upload` for DOCX with `X-Tenant-ID: tenant-demo`
+- `GET /uploads/{job_id}` until the DOCX job is `completed`
 - `POST /search` with `metadata_filters.source = ragresover-demo.pdf`
 - `POST /chat` with source metadata enabled
 - tenant isolation check by uploading a private file to `tenant-other`
@@ -146,6 +148,13 @@ Upload PDF:
 curl.exe -X POST http://localhost:8000/upload `
   -H "X-Tenant-ID: tenant-demo" `
   -F "file=@.demo/ragresover-demo.pdf;type=application/pdf"
+```
+
+The response returns a `job_id`. Poll it until `status` is `completed`:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/uploads/<job_id> `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
 ```
 
 Upload DOCX:

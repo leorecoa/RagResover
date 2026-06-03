@@ -2,10 +2,10 @@
 
 ## MVP Stabilization
 
-- Add automated backend tests.
 - Add visual regression coverage for the frontend.
 - Pin dependency versions.
 - Improve error responses and request IDs.
+- Replace MVP upload background tasks with a durable queue/worker.
 
 ## Document Processing
 
@@ -23,6 +23,7 @@
 
 ## Product Features
 
+- Add upload job history filters and retry actions.
 - Add persistent chat history.
 - Add source downloads.
 - Add user accounts.
