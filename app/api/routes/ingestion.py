@@ -1,7 +1,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import TenantContext, get_tenant_context
@@ -9,8 +9,8 @@ from app.api.schemas.ingestion import UploadJobListResponse, UploadJobResponse, 
 from app.core.config import settings
 from app.db.session import get_db_session
 from app.repositories.ingestion_jobs import IngestionJobRecord, IngestionJobRepository
-from app.services.parsing import UnsupportedDocumentTypeError
-from app.services.upload_jobs import process_upload_job
+from app.services.ingestion_queue import get_ingestion_queue
+from app.services.storage import storage_service
 
 logger = logging.getLogger("rag_resover")
 router = APIRouter(tags=["Ingestion"])
@@ -43,9 +43,14 @@ def upload_job_payload(job: IngestionJobRecord, message: str | None = None) -> d
         "status": job.status,
         "tenant_id": job.tenant_id,
         "error_message": job.error_message,
+        "attempts": job.attempts,
+        "max_attempts": job.max_attempts,
+        "last_error": job.last_error,
         "document_id": str(job.document_id) if job.document_id else None,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
         "message": message or "Upload recebido para processamento.",
     }
 
@@ -62,7 +67,6 @@ def parse_job_id(job_id: str) -> UUID:
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_db_session),
     tenant: TenantContext = Depends(get_tenant_context),
@@ -83,26 +87,36 @@ async def upload_document(
                 detail="Arquivo excede o tamanho maximo permitido.",
             )
 
-        job = await IngestionJobRepository(session).create_job(
+        raw_storage_path = await storage_service.upload_file(
+            file_name,
+            file_bytes,
+            content_type,
+        )
+        jobs = IngestionJobRepository(session)
+        job = await jobs.create_job(
             tenant_id=tenant.tenant_id,
             file_name=file_name,
             content_type=content_type,
             file_size=len(file_bytes),
+            raw_storage_path=raw_storage_path,
+            max_attempts=settings.INGESTION_JOB_MAX_ATTEMPTS,
         )
-        background_tasks.add_task(
-            process_upload_job,
-            job_id=job.id,
-            tenant_id=tenant.tenant_id,
-            file_name=file_name,
-            file_bytes=file_bytes,
-            content_type=content_type,
-        )
+        try:
+            await get_ingestion_queue().enqueue(job.id)
+        except Exception as exc:
+            logger.exception("Erro ao enfileirar upload job %s", job.id)
+            await jobs.fail_job(
+                job_id=job.id,
+                error_message=f"Fila de ingestao indisponivel: {exc}",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Fila de ingestao indisponivel.",
+            ) from exc
 
         return upload_job_payload(job)
     except HTTPException:
         raise
-    except UnsupportedDocumentTypeError as exc:
-        raise HTTPException(status_code=415, detail=str(exc)) from exc
     except Exception:
         logger.exception("Erro ao processar upload %s", file_name)
         raise HTTPException(

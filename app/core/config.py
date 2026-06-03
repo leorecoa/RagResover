@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     DATABASE_URL: PostgresDsn = "postgresql+asyncpg://postgres:password@localhost:5432/ragdb"
     DATABASE_CONNECT_TIMEOUT_SECONDS: float = 2.0
     REDIS_URL: RedisDsn = "redis://localhost:6379"
+    INGESTION_QUEUE_PROVIDER: Literal["inline", "redis"] = "inline"
+    INGESTION_QUEUE_NAME: str = "ragresover:ingestion"
+    INGESTION_JOB_MAX_ATTEMPTS: int = 3
+    INGESTION_RETRY_DELAY_SECONDS: float = 1.0
+    INGESTION_WORKER_POLL_TIMEOUT_SECONDS: int = 5
+    INGESTION_STALE_JOB_TIMEOUT_SECONDS: int = 15 * 60
     DEBUG: bool = False
     CORS_ALLOW_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     ALLOW_ANONYMOUS_ACCESS: bool = True
@@ -105,6 +111,16 @@ class Settings(BaseSettings):
             raise ValueError("STORAGE_MAX_RETRIES must be greater than or equal to 0")
         if self.DATABASE_CONNECT_TIMEOUT_SECONDS <= 0:
             raise ValueError("DATABASE_CONNECT_TIMEOUT_SECONDS must be greater than 0")
+        if not self.INGESTION_QUEUE_NAME.strip():
+            raise ValueError("INGESTION_QUEUE_NAME must not be empty")
+        if self.INGESTION_JOB_MAX_ATTEMPTS <= 0:
+            raise ValueError("INGESTION_JOB_MAX_ATTEMPTS must be greater than 0")
+        if self.INGESTION_RETRY_DELAY_SECONDS < 0:
+            raise ValueError("INGESTION_RETRY_DELAY_SECONDS must be greater than or equal to 0")
+        if self.INGESTION_WORKER_POLL_TIMEOUT_SECONDS <= 0:
+            raise ValueError("INGESTION_WORKER_POLL_TIMEOUT_SECONDS must be greater than 0")
+        if self.INGESTION_STALE_JOB_TIMEOUT_SECONDS <= 0:
+            raise ValueError("INGESTION_STALE_JOB_TIMEOUT_SECONDS must be greater than 0")
         if not self.DEFAULT_TENANT_ID.strip():
             raise ValueError("DEFAULT_TENANT_ID must not be empty")
         if self.is_production and "*" in self.cors_origins:

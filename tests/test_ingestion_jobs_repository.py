@@ -53,11 +53,19 @@ def job_row(status="pending", document_id=None):
         "file_name": "manual.pdf",
         "content_type": "application/pdf",
         "file_size": 2048,
+        "raw_storage_path": "s3://documents/manual.pdf",
         "status": status,
         "error_message": None,
+        "attempts": 1 if status in {"processing", "completed", "failed"} else 0,
+        "max_attempts": 3,
+        "last_error": None,
         "document_id": document_id,
         "created_at": datetime(2026, 6, 1, 12, 0, 0),
         "updated_at": datetime(2026, 6, 1, 12, 1, 0),
+        "started_at": datetime(2026, 6, 1, 12, 0, 30) if status == "processing" else None,
+        "finished_at": datetime(2026, 6, 1, 12, 1, 0)
+        if status in {"completed", "failed"}
+        else None,
     }
 
 
@@ -71,6 +79,8 @@ def test_create_job_persists_pending_job_and_commits():
             file_name="manual.pdf",
             content_type="application/pdf",
             file_size=2048,
+            raw_storage_path="s3://documents/manual.pdf",
+            max_attempts=3,
         )
 
     job = anyio.run(call_repository)
@@ -80,6 +90,8 @@ def test_create_job_persists_pending_job_and_commits():
     statement = str(session.calls[0][0])
     assert "INSERT INTO ingestion_jobs" in statement
     assert session.calls[0][1]["tenant_id"] == "tenant-a"
+    assert session.calls[0][1]["raw_storage_path"] == "s3://documents/manual.pdf"
+    assert session.calls[0][1]["max_attempts"] == 3
 
 
 def test_list_jobs_filters_by_tenant():
@@ -153,3 +165,80 @@ def test_update_status_rolls_back_when_job_is_missing():
     assert job is None
     assert session.rolled_back is True
     assert session.committed is False
+
+
+def test_start_attempt_increments_attempts_and_marks_processing():
+    session = FakeSession([FakeResult([job_row(status="processing")])])
+    repository = IngestionJobRepository(session)
+
+    async def call_repository():
+        return await repository.start_attempt(
+            job_id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+
+    job = anyio.run(call_repository)
+
+    assert job is not None
+    assert job.status == "processing"
+    assert session.committed is True
+    statement = str(session.calls[0][0])
+    assert "attempts = attempts + 1" in statement
+    assert "status IN ('pending', 'failed')" in statement
+    assert "attempts < max_attempts" in statement
+
+
+def test_retry_job_records_last_error_and_marks_pending():
+    row = job_row(status="pending")
+    row["last_error"] = "temporary parser failure"
+    session = FakeSession([FakeResult([row])])
+    repository = IngestionJobRepository(session)
+
+    async def call_repository():
+        return await repository.mark_retry_pending(
+            job_id=UUID("11111111-1111-1111-1111-111111111111"),
+            error_message="temporary parser failure",
+        )
+
+    job = anyio.run(call_repository)
+
+    assert job is not None
+    assert job.status == "pending"
+    assert session.committed is True
+    assert session.calls[0][1]["error_message"] == "temporary parser failure"
+
+
+def test_fail_job_sets_error_and_finished_at():
+    row = job_row(status="failed")
+    row["error_message"] = "parser unavailable"
+    row["last_error"] = "parser unavailable"
+    session = FakeSession([FakeResult([row])])
+    repository = IngestionJobRepository(session)
+
+    async def call_repository():
+        return await repository.fail_job(
+            job_id=UUID("11111111-1111-1111-1111-111111111111"),
+            error_message="parser unavailable",
+        )
+
+    job = anyio.run(call_repository)
+
+    assert job is not None
+    assert job.status == "failed"
+    assert job.error_message == "parser unavailable"
+    assert job.last_error == "parser unavailable"
+
+
+def test_fail_stale_processing_jobs_returns_updated_count():
+    session = FakeSession([FakeResult([{"id": UUID("11111111-1111-1111-1111-111111111111")}])])
+    repository = IngestionJobRepository(session)
+
+    async def call_repository():
+        return await repository.fail_stale_processing_jobs(stale_after_seconds=900)
+
+    count = anyio.run(call_repository)
+
+    assert count == 1
+    assert session.committed is True
+    statement = str(session.calls[0][0])
+    assert "status = 'processing'" in statement
+    assert session.calls[0][1]["stale_after_seconds"] == 900

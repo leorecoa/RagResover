@@ -19,6 +19,17 @@ def build_safe_object_name(file_name: str) -> str:
     return f"{uuid4().hex}_{safe_name}"
 
 
+def parse_storage_path(storage_path: str) -> tuple[str, str]:
+    if not storage_path.startswith("s3://"):
+        raise ValueError(f"Caminho de storage invalido: {storage_path}")
+
+    path = storage_path.removeprefix("s3://")
+    bucket, separator, object_name = path.partition("/")
+    if not bucket or not separator or not object_name:
+        raise ValueError(f"Caminho de storage invalido: {storage_path}")
+    return bucket, object_name
+
+
 class StorageService:
     def __init__(self):
         self.client = Minio(
@@ -60,6 +71,19 @@ class StorageService:
 
         await to_thread.run_sync(_sync_upload)
         return f"s3://{settings.STORAGE_BUCKET_NAME}/{object_name}"
+
+    async def download_file(self, storage_path: str) -> bytes:
+        bucket, object_name = parse_storage_path(storage_path)
+
+        def _sync_download():
+            response = self.client.get_object(bucket, object_name)
+            try:
+                return response.read()
+            finally:
+                response.close()
+                response.release_conn()
+
+        return await to_thread.run_sync(_sync_download)
 
 
 storage_service = StorageService()

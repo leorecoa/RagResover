@@ -53,9 +53,14 @@ Example response:
   "status": "pending",
   "tenant_id": "tenant-demo",
   "error_message": null,
+  "attempts": 0,
+  "max_attempts": 3,
+  "last_error": null,
   "document_id": null,
   "created_at": "2026-06-03T12:00:00",
   "updated_at": "2026-06-03T12:00:00",
+  "started_at": null,
+  "finished_at": null,
   "message": "Upload recebido para processamento."
 }
 ```
@@ -78,9 +83,37 @@ Completed response:
   "status": "completed",
   "tenant_id": "tenant-demo",
   "error_message": null,
+  "attempts": 1,
+  "max_attempts": 3,
+  "last_error": null,
   "document_id": "67a96a52-3b77-4efa-b6eb-e065ca66c4f4",
   "created_at": "2026-06-03T12:00:00",
   "updated_at": "2026-06-03T12:00:04",
+  "started_at": "2026-06-03T12:00:01",
+  "finished_at": "2026-06-03T12:00:04",
+  "message": "Upload recebido para processamento."
+}
+```
+
+Failed response after retries:
+
+```json
+{
+  "job_id": "d7cefc92-9a7f-4ca3-9b52-b6e68853218e",
+  "filename": "broken.pdf",
+  "content_type": "application/pdf",
+  "file_size": 1024,
+  "status": "failed",
+  "tenant_id": "tenant-demo",
+  "error_message": "Arquivo PDF invalido.",
+  "attempts": 3,
+  "max_attempts": 3,
+  "last_error": "Arquivo PDF invalido.",
+  "document_id": null,
+  "created_at": "2026-06-03T12:00:00",
+  "updated_at": "2026-06-03T12:00:10",
+  "started_at": "2026-06-03T12:00:09",
+  "finished_at": "2026-06-03T12:00:10",
   "message": "Upload recebido para processamento."
 }
 ```
