@@ -15,11 +15,17 @@ def make_job(status="pending", tenant_id="anonymous", document_id=None, error_me
         file_name="note.txt",
         content_type="text/plain",
         file_size=6,
+        raw_storage_path="s3://documents/raw-note.txt",
         status=status,
         error_message=error_message,
+        attempts=1 if status in {"processing", "completed", "failed"} else 0,
+        max_attempts=3,
+        last_error=error_message,
         document_id=document_id,
         created_at=datetime(2026, 6, 1, 12, 0, 0),
         updated_at=datetime(2026, 6, 1, 12, 0, 0),
+        started_at=None,
+        finished_at=None,
     )
 
 
@@ -43,7 +49,7 @@ def test_upload_rejects_empty_file(client_with_fake_db):
     assert response.json()["detail"] == "Arquivo vazio nao pode ser processado."
 
 
-def test_upload_creates_job_and_schedules_background_processing(
+def test_upload_creates_job_and_enqueues_processing(
     client_with_fake_db,
     monkeypatch,
 ):
@@ -59,16 +65,31 @@ def test_upload_creates_job_and_schedules_background_processing(
                 tenant_id=kwargs["tenant_id"],
             )
 
-    async def fake_process_upload_job(**kwargs):
-        captured["background_kwargs"] = kwargs
+    class FakeStorageService:
+        @staticmethod
+        async def upload_file(file_name, file_bytes, content_type):
+            captured["storage_kwargs"] = {
+                "file_name": file_name,
+                "file_bytes": file_bytes,
+                "content_type": content_type,
+            }
+            return "s3://documents/raw-note.txt"
+
+    class FakeQueue:
+        async def enqueue(self, job_id):
+            captured["queued_job_id"] = job_id
 
     monkeypatch.setattr(
         "app.api.routes.ingestion.IngestionJobRepository",
         FakeIngestionJobRepository,
     )
     monkeypatch.setattr(
-        "app.api.routes.ingestion.process_upload_job",
-        fake_process_upload_job,
+        "app.api.routes.ingestion.storage_service",
+        FakeStorageService,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.get_ingestion_queue",
+        lambda: FakeQueue(),
     )
 
     response = client_with_fake_db.post(
@@ -86,10 +107,11 @@ def test_upload_creates_job_and_schedules_background_processing(
         "file_name": "note.txt",
         "content_type": "text/plain",
         "file_size": 6,
+        "raw_storage_path": "s3://documents/raw-note.txt",
+        "max_attempts": 3,
     }
-    assert captured["background_kwargs"]["job_id"] == JOB_ID
-    assert captured["background_kwargs"]["tenant_id"] == "tenant-a"
-    assert captured["background_kwargs"]["file_bytes"] == b"Trecho"
+    assert captured["storage_kwargs"]["file_bytes"] == b"Trecho"
+    assert captured["queued_job_id"] == JOB_ID
 
 
 def test_upload_accepts_pdf_and_docx_content_types(
@@ -108,16 +130,26 @@ def test_upload_accepts_pdf_and_docx_content_types(
                 tenant_id=kwargs["tenant_id"],
             )
 
-    async def fake_process_upload_job(**kwargs):
-        return None
+    class FakeStorageService:
+        @staticmethod
+        async def upload_file(file_name, file_bytes, content_type):
+            return f"s3://documents/{file_name}"
+
+    class FakeQueue:
+        async def enqueue(self, job_id):
+            return None
 
     monkeypatch.setattr(
         "app.api.routes.ingestion.IngestionJobRepository",
         FakeIngestionJobRepository,
     )
     monkeypatch.setattr(
-        "app.api.routes.ingestion.process_upload_job",
-        fake_process_upload_job,
+        "app.api.routes.ingestion.storage_service",
+        FakeStorageService,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.get_ingestion_queue",
+        lambda: FakeQueue(),
     )
 
     pdf_response = client_with_fake_db.post(

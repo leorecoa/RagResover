@@ -57,6 +57,10 @@ Wait until the backend is available at:
 http://localhost:8000/docs
 ```
 
+Docker Compose also starts the Redis-backed ingestion worker. If you run the API
+outside Compose, either start `python -m app.workers.ingestion_worker` or set
+`INGESTION_QUEUE_PROVIDER=inline` for a simple local shell.
+
 Optional frontend:
 
 ```powershell

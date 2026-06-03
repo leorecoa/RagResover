@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 import anyio
@@ -5,6 +6,7 @@ from langchain_core.documents import Document
 
 import app.services.upload_jobs as upload_jobs_module
 from app.repositories.documents import PersistedIngestion
+from app.repositories.ingestion_jobs import IngestionJobRecord
 from app.services.ingestion import IngestionResult
 
 
@@ -20,8 +22,29 @@ class FakeSessionContext:
         return False
 
 
-def test_process_upload_job_marks_completed(monkeypatch):
-    status_updates = []
+def make_job(*, attempts=1, max_attempts=3, raw_storage_path="s3://documents/note.txt"):
+    return IngestionJobRecord(
+        id=JOB_ID,
+        tenant_id="tenant-a",
+        file_name="note.txt",
+        content_type="text/plain",
+        file_size=6,
+        raw_storage_path=raw_storage_path,
+        status="processing",
+        error_message=None,
+        attempts=attempts,
+        max_attempts=max_attempts,
+        last_error=None,
+        document_id=None,
+        created_at=datetime(2026, 6, 1, 12, 0, 0),
+        updated_at=datetime(2026, 6, 1, 12, 0, 0),
+        started_at=datetime(2026, 6, 1, 12, 0, 1),
+        finished_at=None,
+    )
+
+
+def test_process_queued_upload_job_marks_completed(monkeypatch):
+    completed = {}
     persist_kwargs = {}
     chunks = [Document(page_content="Trecho", metadata={"source": "note.txt"})]
 
@@ -29,9 +52,12 @@ def test_process_upload_job_marks_completed(monkeypatch):
         def __init__(self, session):
             self.session = session
 
-        async def update_status(self, **kwargs):
-            status_updates.append(kwargs)
-            return object()
+        async def start_attempt(self, **kwargs):
+            assert kwargs["job_id"] == JOB_ID
+            return make_job()
+
+        async def complete_job(self, **kwargs):
+            completed.update(kwargs)
 
     class FakeDocumentRepository:
         def __init__(self, session):
@@ -41,15 +67,21 @@ def test_process_upload_job_marks_completed(monkeypatch):
             persist_kwargs.update(kwargs)
             return PersistedIngestion(document_id=DOCUMENT_ID, chunks_count=1)
 
+    class FakeStorageService:
+        @staticmethod
+        async def download_file(storage_path):
+            assert storage_path == "s3://documents/note.txt"
+            return b"Trecho"
+
     ingestion_service = type(
         "FakeIngestionService",
         (),
         {
-            "ingest_raw_file": staticmethod(
+            "ingest_stored_file": staticmethod(
                 lambda **kwargs: _async_value(
                     IngestionResult(
                         chunks=chunks,
-                        storage_path="s3://documents/note.txt",
+                        storage_path=kwargs["storage_path"],
                         file_size=6,
                     )
                 )
@@ -65,106 +97,116 @@ def test_process_upload_job_marks_completed(monkeypatch):
     monkeypatch.setattr(upload_jobs_module, "AsyncSessionLocal", lambda: FakeSessionContext())
     monkeypatch.setattr(upload_jobs_module, "IngestionJobRepository", FakeJobRepository)
     monkeypatch.setattr(upload_jobs_module, "DocumentRepository", FakeDocumentRepository)
+    monkeypatch.setattr(upload_jobs_module, "storage_service", FakeStorageService)
     monkeypatch.setattr(upload_jobs_module, "ingestion_service", ingestion_service)
     monkeypatch.setattr(upload_jobs_module, "embedding_service", embedding_service)
 
     async def call_service():
-        await upload_jobs_module.process_upload_job(
-            job_id=JOB_ID,
-            tenant_id="tenant-a",
-            file_name="note.txt",
-            file_bytes=b"Trecho",
-            content_type="text/plain",
-        )
+        await upload_jobs_module.process_queued_upload_job(job_id=JOB_ID)
 
     anyio.run(call_service)
 
-    assert status_updates[0] == {"job_id": JOB_ID, "status": "processing"}
-    assert status_updates[1] == {
-        "job_id": JOB_ID,
-        "status": "completed",
-        "document_id": DOCUMENT_ID,
-        "error_message": None,
-    }
+    assert completed == {"job_id": JOB_ID, "document_id": DOCUMENT_ID}
     assert persist_kwargs["tenant_id"] == "tenant-a"
     assert persist_kwargs["file_name"] == "note.txt"
+    assert persist_kwargs["storage_path"] == "s3://documents/note.txt"
     assert persist_kwargs["embeddings"] == [[0.1, 0.2]]
 
 
-def test_process_upload_job_marks_failed_on_error(monkeypatch):
-    status_updates = []
+def test_process_queued_upload_job_retries_temporary_failure(monkeypatch):
+    retry = {}
+    queued = []
 
     class FakeJobRepository:
         def __init__(self, session):
             self.session = session
 
-        async def update_status(self, **kwargs):
-            status_updates.append(kwargs)
+        async def start_attempt(self, **kwargs):
+            return make_job(attempts=1, max_attempts=3)
+
+        async def mark_retry_pending(self, **kwargs):
+            retry.update(kwargs)
             return object()
 
-    class FakeIngestionService:
+    class FakeStorageService:
         @staticmethod
-        async def ingest_raw_file(**kwargs):
+        async def download_file(storage_path):
+            raise RuntimeError("storage unavailable")
+
+    class FakeQueue:
+        async def enqueue(self, job_id):
+            queued.append(job_id)
+
+    monkeypatch.setattr(upload_jobs_module, "AsyncSessionLocal", lambda: FakeSessionContext())
+    monkeypatch.setattr(upload_jobs_module, "IngestionJobRepository", FakeJobRepository)
+    monkeypatch.setattr(upload_jobs_module, "storage_service", FakeStorageService)
+    monkeypatch.setattr(upload_jobs_module.settings, "INGESTION_RETRY_DELAY_SECONDS", 0)
+
+    async def call_service():
+        await upload_jobs_module.process_queued_upload_job(job_id=JOB_ID, queue=FakeQueue())
+
+    anyio.run(call_service)
+
+    assert retry == {"job_id": JOB_ID, "error_message": "storage unavailable"}
+    assert queued == [JOB_ID]
+
+
+def test_process_queued_upload_job_marks_failed_after_max_attempts(monkeypatch):
+    failed = {}
+
+    class FakeJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def start_attempt(self, **kwargs):
+            return make_job(attempts=3, max_attempts=3)
+
+        async def fail_job(self, **kwargs):
+            failed.update(kwargs)
+
+    class FakeStorageService:
+        @staticmethod
+        async def download_file(storage_path):
             raise RuntimeError("parser unavailable")
 
     monkeypatch.setattr(upload_jobs_module, "AsyncSessionLocal", lambda: FakeSessionContext())
     monkeypatch.setattr(upload_jobs_module, "IngestionJobRepository", FakeJobRepository)
-    monkeypatch.setattr(upload_jobs_module, "ingestion_service", FakeIngestionService)
+    monkeypatch.setattr(upload_jobs_module, "storage_service", FakeStorageService)
 
     async def call_service():
-        await upload_jobs_module.process_upload_job(
-            job_id=JOB_ID,
-            tenant_id="tenant-a",
-            file_name="broken.pdf",
-            file_bytes=b"broken",
-            content_type="application/pdf",
-        )
+        await upload_jobs_module.process_queued_upload_job(job_id=JOB_ID)
 
     anyio.run(call_service)
 
-    assert status_updates[0] == {"job_id": JOB_ID, "status": "processing"}
-    assert status_updates[1] == {
-        "job_id": JOB_ID,
-        "status": "failed",
-        "error_message": "parser unavailable",
-    }
+    assert failed == {"job_id": JOB_ID, "error_message": "parser unavailable"}
 
 
-def test_process_upload_job_stops_when_job_is_missing(monkeypatch):
-    status_updates = []
-    ingest_called = False
+def test_process_queued_upload_job_stops_when_job_is_missing(monkeypatch):
+    started = []
 
     class FakeJobRepository:
         def __init__(self, session):
             self.session = session
 
-        async def update_status(self, **kwargs):
-            status_updates.append(kwargs)
+        async def start_attempt(self, **kwargs):
+            started.append(kwargs)
             return None
 
-    class FakeIngestionService:
+    class FakeStorageService:
         @staticmethod
-        async def ingest_raw_file(**kwargs):
-            nonlocal ingest_called
-            ingest_called = True
+        async def download_file(storage_path):
+            raise AssertionError("download should not be called")
 
     monkeypatch.setattr(upload_jobs_module, "AsyncSessionLocal", lambda: FakeSessionContext())
     monkeypatch.setattr(upload_jobs_module, "IngestionJobRepository", FakeJobRepository)
-    monkeypatch.setattr(upload_jobs_module, "ingestion_service", FakeIngestionService)
+    monkeypatch.setattr(upload_jobs_module, "storage_service", FakeStorageService)
 
     async def call_service():
-        await upload_jobs_module.process_upload_job(
-            job_id=JOB_ID,
-            tenant_id="tenant-a",
-            file_name="missing.txt",
-            file_bytes=b"missing",
-            content_type="text/plain",
-        )
+        await upload_jobs_module.process_queued_upload_job(job_id=JOB_ID)
 
     anyio.run(call_service)
 
-    assert status_updates == [{"job_id": JOB_ID, "status": "processing"}]
-    assert ingest_called is False
+    assert started == [{"job_id": JOB_ID}]
 
 
 async def _async_value(value):

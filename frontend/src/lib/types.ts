@@ -29,9 +29,14 @@ export interface UploadJobResponse {
   status: UploadJobStatus;
   tenant_id: string;
   error_message?: string | null;
+  attempts: number;
+  max_attempts: number;
+  last_error?: string | null;
   document_id?: string | null;
   created_at: string;
   updated_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
   message: string;
 }
 

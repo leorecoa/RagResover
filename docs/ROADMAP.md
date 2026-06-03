@@ -5,7 +5,7 @@
 - Add visual regression coverage for the frontend.
 - Pin dependency versions.
 - Improve error responses and request IDs.
-- Replace MVP upload background tasks with a durable queue/worker.
+- Add structured worker metrics and queue depth monitoring.
 
 ## Document Processing
 
@@ -24,6 +24,7 @@
 ## Product Features
 
 - Add upload job history filters and retry actions.
+- Add manual retry/cancel actions for failed ingestion jobs.
 - Add persistent chat history.
 - Add source downloads.
 - Add user accounts.

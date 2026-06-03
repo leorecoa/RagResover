@@ -64,9 +64,14 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
         status: "pending",
         tenant_id: "tenant-alpha",
         error_message: null,
+        attempts: 0,
+        max_attempts: 3,
+        last_error: null,
         document_id: null,
         created_at: "2026-06-03T12:00:00",
         updated_at: "2026-06-03T12:00:00",
+        started_at: null,
+        finished_at: null,
         message: "Upload recebido para processamento.",
       }),
     });
@@ -86,9 +91,14 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
         status: statusCalls > 1 ? "completed" : "processing",
         tenant_id: "tenant-alpha",
         error_message: null,
+        attempts: 1,
+        max_attempts: 3,
+        last_error: null,
         document_id: statusCalls > 1 ? "doc-upload-1" : null,
         created_at: "2026-06-03T12:00:00",
         updated_at: "2026-06-03T12:00:01",
+        started_at: "2026-06-03T12:00:01",
+        finished_at: statusCalls > 1 ? "2026-06-03T12:00:03" : null,
         message: "Upload recebido para processamento.",
       }),
     });
@@ -110,6 +120,7 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
   await expect(page.getByText("policy.pdf").first()).toBeVisible();
   await expect(page.getByText("completed").first()).toBeVisible();
   await expect(page.getByText("doc-upload-1").first()).toBeVisible();
+  await expect(page.getByText("1/3").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir Documents" })).toBeVisible();
   expect(statusCalls).toBeGreaterThan(1);
 });

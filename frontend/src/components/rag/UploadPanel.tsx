@@ -294,6 +294,12 @@ export function UploadPanel({
                     {uploadResult.job_id}
                   </dd>
                 </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-slate-500">Tentativas</dt>
+                  <dd className="font-bold text-slate-100">
+                    {uploadResult.attempts}/{uploadResult.max_attempts}
+                  </dd>
+                </div>
                 {uploadResult.document_id ? (
                   <div className="flex justify-between gap-3">
                     <dt className="text-slate-500">Documento</dt>
@@ -303,6 +309,11 @@ export function UploadPanel({
                   </div>
                 ) : null}
               </dl>
+              {uploadResult.status === "failed" && uploadResult.last_error ? (
+                <p className="mt-4 rounded-lg border border-rose-300/20 bg-rose-400/10 p-3 text-xs font-semibold text-rose-100">
+                  {uploadResult.last_error}
+                </p>
+              ) : null}
               {uploadResult.status === "completed" ? (
                 <Button
                   className="mt-4 w-full"

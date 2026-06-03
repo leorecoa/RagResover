@@ -13,7 +13,8 @@ ollama pull nomic-embed-text
 docker compose up --build
 ```
 
-The compose stack runs `alembic upgrade head` before the backend starts.
+The compose stack runs `alembic upgrade head` before the backend starts. It also
+starts a separate ingestion worker with `INGESTION_QUEUE_PROVIDER=redis`.
 
 Then start the static frontend:
 
@@ -35,6 +36,8 @@ Before selling this as a hosted product, add or configure:
 - Request IDs and structured logs.
 - Backup and restore for Postgres and object storage.
 - Alembic migrations in the deployment pipeline.
+- A durable Redis instance for ingestion queues.
+- Separate API and ingestion worker processes.
 - Monitoring for API latency, provider errors, token usage, and storage growth.
 
 ## Environment Notes
@@ -47,6 +50,9 @@ DEBUG=false
 CORS_ALLOW_ORIGINS=https://your-domain.example
 STORAGE_REQUIRED=true
 DATABASE_URL=postgresql+asyncpg://...
+REDIS_URL=redis://...
+INGESTION_QUEUE_PROVIDER=redis
+INGESTION_JOB_MAX_ATTEMPTS=3
 STORAGE_ACCESS_KEY=...
 STORAGE_SECRET_KEY=...
 ALLOW_ANONYMOUS_ACCESS=false
@@ -58,6 +64,15 @@ Run migrations during deploy:
 ```powershell
 alembic upgrade head
 ```
+
+Run the API and worker as separate processes:
+
+```powershell
+uvicorn app.core.app:create_app --factory --host 0.0.0.0 --port 8000
+python -m app.workers.ingestion_worker
+```
+
+For tests or a no-Redis local shell, set `INGESTION_QUEUE_PROVIDER=inline`.
 
 ## Provider Choice
 

@@ -8,6 +8,8 @@ RagResover is organized as a modular FastAPI backend with a React/Vite frontend.
 Browser
   -> React/Vite frontend
   -> FastAPI backend
+  -> Redis ingestion queue
+  -> ingestion worker
   -> PostgreSQL + pgvector
   -> MinIO object storage
   -> Ollama or OpenAI provider
@@ -37,6 +39,9 @@ app/db
 app/core
   Config, app factory, logging, constants, lifespan.
 
+app/workers
+  Separate worker entrypoints for durable background processing.
+
 migrations
   Alembic migration environment and versioned schema changes.
 ```
@@ -47,18 +52,22 @@ migrations
 POST /upload
   -> resolve tenant from headers/config
   -> validate file
+  -> store raw file in MinIO
   -> create ingestion_jobs row with status pending
-  -> schedule background processing task
+  -> enqueue job_id through IngestionQueue
   -> return 202 Accepted with job_id
 
-Background upload task
+Ingestion worker
+  -> dequeue job_id from Redis or execute inline in test/dev mode
   -> mark job processing
-  -> upload raw file to MinIO
+  -> increment attempts and set started_at
+  -> download raw file from MinIO
   -> parse text, PDF, or DOCX content
   -> split into chunks
   -> generate embeddings
   -> persist source document and chunks in Postgres
-  -> mark job completed with document_id or failed with error_message
+  -> mark job completed with document_id
+  -> retry pending jobs until max_attempts or mark failed with error_message
 
 GET /uploads/{job_id}
   -> resolve tenant from headers/config
@@ -124,13 +133,30 @@ Primary tables are managed through Alembic migrations:
 
 - `source_documents`: one row per uploaded file.
 - `document_chunks`: one row per chunk with optional vector embedding.
-- `ingestion_jobs`: one row per async upload request and processing status.
+- `ingestion_jobs`: one row per async upload request, raw file path, attempts, max attempts, timing, and processing status.
 - `conversations`: reserved for future chat history.
 - `messages`: reserved for future chat messages.
 
 `scripts/init_db.sql` only bootstraps PostgreSQL extensions and schema search path for local Docker startup.
 
 Tenant isolation is stored in `tenant_id` columns. Upload jobs, source documents, and chunks are written with the current tenant; upload status, document management, search, and chat filter by that same tenant before returning data.
+
+## Ingestion Queue
+
+`app/services/ingestion_queue.py` exposes a plugable `IngestionQueue` interface:
+
+- `inline`: deterministic mode for tests and simple local development. The job is processed immediately after enqueue.
+- `redis`: durable mode for Docker and production-like development. The API pushes `job_id` to Redis and `app/workers/ingestion_worker.py` processes jobs separately.
+
+Retries are controlled by:
+
+```env
+INGESTION_JOB_MAX_ATTEMPTS=3
+INGESTION_RETRY_DELAY_SECONDS=1.0
+INGESTION_STALE_JOB_TIMEOUT_SECONDS=900
+```
+
+The worker marks stale `processing` jobs as `failed` so stuck work is visible and can be handled later by a retry/admin feature.
 
 ## Authentication
 
@@ -168,7 +194,7 @@ RagResover supports:
 ## Current Constraints
 
 - Upload reads the whole file into memory.
-- Async upload processing uses FastAPI background tasks for the MVP, not a durable queue yet.
+- Upload processing has durable Redis queue support, but retry scheduling is still simple and immediate.
 - Scanned PDFs without embedded text are not OCR-processed yet.
 - HTML parsing is not implemented yet.
 - Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.

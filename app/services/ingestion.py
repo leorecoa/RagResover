@@ -84,24 +84,66 @@ class IngestionService:
                 file_bytes,
                 content_type,
             )
-            parsed_documents = [
-                Document(
-                    page_content=document.page_content,
-                    metadata={**document.metadata, "path": storage_path},
-                )
-                for document in parsed_documents
-            ]
-            chunks = await self.process_documents(file_name, parsed_documents)
-            return IngestionResult(
-                chunks=chunks,
-                storage_path=storage_path,
+            return await self.build_ingestion_result(
+                file_name=file_name,
                 file_size=len(file_bytes),
+                storage_path=storage_path,
+                parsed_documents=parsed_documents,
             )
         except (DocumentParsingError, UnsupportedDocumentTypeError):
             raise
         except Exception:
             logger.exception("Erro na pipeline de ingestao para %s", file_name)
             raise
+
+    async def ingest_stored_file(
+        self,
+        file_name: str,
+        file_bytes: bytes,
+        content_type: str,
+        storage_path: str,
+    ) -> IngestionResult:
+        try:
+            parsed_documents = await to_thread.run_sync(
+                parse_file_to_documents,
+                file_name,
+                file_bytes,
+                content_type,
+                storage_path,
+            )
+            return await self.build_ingestion_result(
+                file_name=file_name,
+                file_size=len(file_bytes),
+                storage_path=storage_path,
+                parsed_documents=parsed_documents,
+            )
+        except (DocumentParsingError, UnsupportedDocumentTypeError):
+            raise
+        except Exception:
+            logger.exception("Erro na pipeline de ingestao para %s", file_name)
+            raise
+
+    async def build_ingestion_result(
+        self,
+        *,
+        file_name: str,
+        file_size: int,
+        storage_path: str,
+        parsed_documents: List[Document],
+    ) -> IngestionResult:
+        parsed_documents = [
+            Document(
+                page_content=document.page_content,
+                metadata={**document.metadata, "path": storage_path},
+            )
+            for document in parsed_documents
+        ]
+        chunks = await self.process_documents(file_name, parsed_documents)
+        return IngestionResult(
+            chunks=chunks,
+            storage_path=storage_path,
+            file_size=file_size,
+        )
 
 
 ingestion_service = IngestionService()

@@ -24,7 +24,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 
 ## Highlights
 
-- Async document upload with observable processing status
+- Async document upload with durable Redis queue, retries, and observable status
 - Tenant-scoped document management with detail, chunk inspection, and delete
 - Text extraction for TXT, Markdown, JSON, PDF, and DOCX
 - Text chunking with LangChain text splitters
@@ -41,10 +41,9 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 ## Architecture
 
 ```text
-Frontend -> FastAPI -> Services -> Repositories -> PostgreSQL/pgvector
-                         |
-                         +-> MinIO
-                         +-> Ollama or OpenAI
+Frontend -> FastAPI -> Redis queue -> ingestion worker -> Services -> PostgreSQL/pgvector
+                         |                              |
+                         +-> MinIO raw files            +-> Ollama or OpenAI
 ```
 
 Backend package layout:
@@ -57,6 +56,7 @@ app/
   migrations/     Alembic database migrations
   repositories/   SQL and persistence operations
   services/       ingestion, storage, embeddings, chat
+  workers/        separate ingestion worker entrypoints
 ```
 
 More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -139,7 +139,7 @@ Examples: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md).
 
 Search and chat accept optional `score_threshold` and `metadata_filters` fields. When `DEBUG=true`, responses include retrieval diagnostics such as fetch size, effective threshold, filters, embedding provider, and reranker provider.
 
-Upload now returns `202 Accepted` with a `job_id`. Poll `GET /uploads/{job_id}` until the status is `completed` or `failed`; completed jobs include the indexed `document_id`.
+Upload now stores the raw file in MinIO, returns `202 Accepted` with a `job_id`, and enqueues the job. Poll `GET /uploads/{job_id}` until the status is `completed` or `failed`; completed jobs include the indexed `document_id`, while failed jobs include attempts and error details.
 
 Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`.
 
@@ -182,6 +182,16 @@ Run database migrations:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/migrate.ps1
+```
+
+Queue modes:
+
+```powershell
+# Simple local/test mode, no Redis worker required
+$env:INGESTION_QUEUE_PROVIDER="inline"
+
+# Durable mode, used by docker compose with the worker service
+$env:INGESTION_QUEUE_PROVIDER="redis"
 ```
 
 Useful commands:

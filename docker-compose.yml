@@ -69,6 +69,32 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:password@postgres:5432/ragdb
       REDIS_URL: redis://redis:6379
+      INGESTION_QUEUE_PROVIDER: redis
+      STORAGE_ENDPOINT: minio:9000
+      STORAGE_SECURE: "false"
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    volumes:
+      - .:/app
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: python -m app.workers.ingestion_worker
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:password@postgres:5432/ragdb
+      REDIS_URL: redis://redis:6379
+      INGESTION_QUEUE_PROVIDER: redis
       STORAGE_ENDPOINT: minio:9000
       STORAGE_SECURE: "false"
       OLLAMA_BASE_URL: http://host.docker.internal:11434
