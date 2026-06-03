@@ -3,7 +3,7 @@
 ## MVP Stabilization
 
 - Add automated backend tests.
-- Add frontend smoke tests.
+- Add visual regression coverage for the frontend.
 - Pin dependency versions.
 - Improve error responses and request IDs.
 

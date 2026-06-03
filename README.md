@@ -147,8 +147,10 @@ Useful frontend commands:
 
 ```powershell
 cd frontend
+npx playwright install chromium
 npm run dev
 npm run build
+npm run test:e2e
 npm run preview
 ```
 

@@ -22,10 +22,11 @@ if ($alembicExitCode -ne 0) {
 Write-Host "Checking Python dependencies..."
 venv\Scripts\pip.exe check
 
-Write-Host "Checking frontend build..."
+Write-Host "Checking frontend build and E2E tests..."
 Push-Location frontend
 try {
     npm.cmd run build
+    npm.cmd run test:e2e
 }
 finally {
     Pop-Location
