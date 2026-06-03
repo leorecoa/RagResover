@@ -214,7 +214,9 @@ test("manages upload job history with filters, retry and cancel", async ({ page 
   await page.getByLabel("API token").fill("demo-token");
   await page.getByRole("button", { name: /Upload Ingestao/ }).click();
 
-  await expect(page.getByRole("heading", { name: "Upload jobs" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Upload jobs", exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("failed.pdf")).toBeVisible();
   await expect(page.getByText("pending.docx")).toBeVisible();
   await expect(page.getByText("Arquivo PDF invalido.").first()).toBeVisible();
