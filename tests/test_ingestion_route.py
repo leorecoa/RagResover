@@ -1,6 +1,8 @@
 from datetime import datetime
 from uuid import UUID
 
+import pytest
+
 from app.repositories.ingestion_jobs import IngestionJobRecord
 
 
@@ -177,6 +179,9 @@ def test_upload_accepts_pdf_and_docx_content_types(
 
 
 def test_list_upload_jobs_returns_tenant_jobs(client_with_fake_db, monkeypatch):
+    created_from = "2026-06-01T00:00:00"
+    created_to = "2026-06-03T00:00:00"
+
     class FakeIngestionJobRepository:
         def __init__(self, session):
             self.session = session
@@ -184,6 +189,13 @@ def test_list_upload_jobs_returns_tenant_jobs(client_with_fake_db, monkeypatch):
         async def list_jobs(self, **kwargs):
             assert kwargs["tenant_id"] == "tenant-a"
             assert kwargs["limit"] == 25
+            assert kwargs["offset"] == 5
+            assert kwargs["status"] == "completed"
+            assert kwargs["filename"] == "note"
+            assert kwargs["content_type"] == "text/plain"
+            assert kwargs["created_from"] == datetime.fromisoformat(created_from)
+            assert kwargs["created_to"] == datetime.fromisoformat(created_to)
+            assert kwargs["document_id"] == DOCUMENT_ID
             return [make_job(status="completed", tenant_id="tenant-a", document_id=DOCUMENT_ID)]
 
     monkeypatch.setattr(
@@ -192,7 +204,11 @@ def test_list_upload_jobs_returns_tenant_jobs(client_with_fake_db, monkeypatch):
     )
 
     response = client_with_fake_db.get(
-        "/uploads?limit=25",
+        (
+            "/uploads?limit=25&offset=5&status=completed&filename=note"
+            f"&content_type=text/plain&created_from={created_from}"
+            f"&created_to={created_to}&document_id={DOCUMENT_ID}"
+        ),
         headers={"X-Tenant-ID": "tenant-a"},
     )
 
@@ -201,6 +217,9 @@ def test_list_upload_jobs_returns_tenant_jobs(client_with_fake_db, monkeypatch):
     assert payload["uploads"][0]["status"] == "completed"
     assert payload["uploads"][0]["document_id"] == str(DOCUMENT_ID)
     assert payload["uploads"][0]["tenant_id"] == "tenant-a"
+    assert payload["limit"] == 25
+    assert payload["offset"] == 5
+    assert payload["count"] == 1
 
 
 def test_get_upload_job_returns_404_for_other_tenant(client_with_fake_db, monkeypatch):
@@ -252,3 +271,185 @@ def test_get_upload_job_returns_failed_error_message(client_with_fake_db, monkey
     assert response.status_code == 200
     assert response.json()["status"] == "failed"
     assert response.json()["error_message"] == "Arquivo PDF invalido."
+
+
+def test_retry_failed_upload_job_reenqueues_job(client_with_fake_db, monkeypatch):
+    captured = {}
+
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            assert kwargs["tenant_id"] == "tenant-a"
+            return make_job(
+                status="failed",
+                tenant_id="tenant-a",
+                error_message="Arquivo PDF invalido.",
+            )
+
+        async def retry_failed_job(self, **kwargs):
+            captured["retry_kwargs"] = kwargs
+            return make_job(status="pending", tenant_id="tenant-a")
+
+        async def fail_job(self, **kwargs):
+            captured["fail_kwargs"] = kwargs
+
+    class FakeQueue:
+        async def enqueue(self, job_id):
+            captured["queued_job_id"] = job_id
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.get_ingestion_queue",
+        lambda: FakeQueue(),
+    )
+
+    response = client_with_fake_db.post(
+        f"/uploads/{JOB_ID}/retry",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+    assert response.json()["message"] == "Upload job reenfileirado para processamento."
+    assert captured["retry_kwargs"] == {"tenant_id": "tenant-a", "job_id": JOB_ID}
+    assert captured["queued_job_id"] == JOB_ID
+
+
+@pytest.mark.parametrize("job_status", ["pending", "processing", "completed", "canceled"])
+def test_retry_upload_job_rejects_invalid_states(
+    client_with_fake_db,
+    monkeypatch,
+    job_status,
+):
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            return make_job(status=job_status, tenant_id="tenant-a")
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.post(
+        f"/uploads/{JOB_ID}/retry",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Apenas upload jobs failed podem receber retry manual."
+
+
+def test_retry_upload_job_returns_404_for_other_tenant(client_with_fake_db, monkeypatch):
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            assert kwargs["tenant_id"] == "tenant-a"
+            return None
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.post(
+        f"/uploads/{JOB_ID}/retry",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_cancel_pending_upload_job(client_with_fake_db, monkeypatch):
+    captured = {}
+
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            assert kwargs["tenant_id"] == "tenant-a"
+            return make_job(status="pending", tenant_id="tenant-a")
+
+        async def cancel_pending_job(self, **kwargs):
+            captured["cancel_kwargs"] = kwargs
+            return make_job(
+                status="canceled",
+                tenant_id="tenant-a",
+                error_message="Upload cancelado pelo usuario.",
+            )
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.post(
+        f"/uploads/{JOB_ID}/cancel",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "canceled"
+    assert response.json()["message"] == "Upload job cancelado."
+    assert captured["cancel_kwargs"] == {"tenant_id": "tenant-a", "job_id": JOB_ID}
+
+
+@pytest.mark.parametrize("job_status", ["completed", "failed", "canceled"])
+def test_cancel_upload_job_rejects_terminal_states(
+    client_with_fake_db,
+    monkeypatch,
+    job_status,
+):
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            return make_job(status=job_status, tenant_id="tenant-a")
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.post(
+        f"/uploads/{JOB_ID}/cancel",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Apenas upload jobs pending podem ser cancelados."
+
+
+def test_cancel_upload_job_rejects_processing_state(client_with_fake_db, monkeypatch):
+    class FakeIngestionJobRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_job(self, **kwargs):
+            return make_job(status="processing", tenant_id="tenant-a")
+
+    monkeypatch.setattr(
+        "app.api.routes.ingestion.IngestionJobRepository",
+        FakeIngestionJobRepository,
+    )
+
+    response = client_with_fake_db.post(
+        f"/uploads/{JOB_ID}/cancel",
+        headers={"X-Tenant-ID": "tenant-a"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Upload job em processamento nao pode ser cancelado com seguranca."
+    )

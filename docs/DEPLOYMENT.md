@@ -38,6 +38,7 @@ Before selling this as a hosted product, add or configure:
 - Alembic migrations in the deployment pipeline.
 - A durable Redis instance for ingestion queues.
 - Separate API and ingestion worker processes.
+- Operational access controls for retry/cancel actions in admin contexts.
 - Monitoring for API latency, provider errors, token usage, and storage growth.
 
 ## Environment Notes

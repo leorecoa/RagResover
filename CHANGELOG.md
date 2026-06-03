@@ -19,3 +19,4 @@ All notable changes to RagResover should be documented in this file.
 - Tenant-scoped document management API and UI for listing, inspecting chunks, filtering, and deleting documents.
 - Async upload processing jobs with tenant-scoped status polling, failure messages, frontend progress, and demo flow support.
 - Durable ingestion queue abstraction with inline and Redis providers, separate worker process, retries, attempts tracking, and stale-job failure handling.
+- Upload job management with filtered history, pagination, manual retry for failed jobs, safe cancellation for pending jobs, and frontend controls.

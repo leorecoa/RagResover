@@ -23,8 +23,7 @@
 
 ## Product Features
 
-- Add upload job history filters and retry actions.
-- Add manual retry/cancel actions for failed ingestion jobs.
+- Add audit log entries for upload job retry/cancel actions.
 - Add persistent chat history.
 - Add source downloads.
 - Add user accounts.

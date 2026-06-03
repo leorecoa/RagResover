@@ -19,7 +19,7 @@ export interface ReadyResponse {
   version: string;
 }
 
-export type UploadJobStatus = "pending" | "processing" | "completed" | "failed";
+export type UploadJobStatus = "pending" | "processing" | "completed" | "failed" | "canceled";
 
 export interface UploadJobResponse {
   job_id: string;
@@ -44,6 +44,20 @@ export type UploadResponse = UploadJobResponse;
 
 export interface UploadJobListResponse {
   uploads: UploadJobResponse[];
+  limit: number;
+  offset: number;
+  count: number;
+}
+
+export interface UploadJobFilters {
+  status?: UploadJobStatus | "";
+  filename?: string;
+  contentType?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  documentId?: string;
+  limit?: number;
+  offset?: number;
 }
 
 export interface DocumentItem {

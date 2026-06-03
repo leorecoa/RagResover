@@ -72,6 +72,21 @@ Ingestion worker
 GET /uploads/{job_id}
   -> resolve tenant from headers/config
   -> return status only when tenant_id matches
+
+GET /uploads
+  -> resolve tenant from headers/config
+  -> filter by status, filename, content_type, created range, or document_id
+  -> paginate with limit/offset
+
+POST /uploads/{job_id}/retry
+  -> resolve tenant from headers/config
+  -> allow only failed jobs
+  -> reset to pending and enqueue job_id again
+
+POST /uploads/{job_id}/cancel
+  -> resolve tenant from headers/config
+  -> allow only pending jobs
+  -> mark job canceled; processing jobs are not interrupted
 ```
 
 PDF parsing preserves page metadata when text is extractable. DOCX parsing preserves paragraph metadata and section headings when available.
@@ -156,7 +171,7 @@ INGESTION_RETRY_DELAY_SECONDS=1.0
 INGESTION_STALE_JOB_TIMEOUT_SECONDS=900
 ```
 
-The worker marks stale `processing` jobs as `failed` so stuck work is visible and can be handled later by a retry/admin feature.
+The worker marks stale `processing` jobs as `failed` so stuck work is visible. Manual retry is available for failed jobs; cancel is limited to pending jobs because processing jobs may already be mutating storage or database state.
 
 ## Authentication
 

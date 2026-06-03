@@ -108,6 +108,42 @@ def test_list_jobs_filters_by_tenant():
     assert "WHERE tenant_id = :tenant_id" in statement
     assert session.calls[0][1]["tenant_id"] == "tenant-a"
     assert session.calls[0][1]["limit"] == 25
+    assert session.calls[0][1]["offset"] == 0
+
+
+def test_list_jobs_applies_optional_filters_and_pagination():
+    document_id = UUID("22222222-2222-2222-2222-222222222222")
+    created_from = datetime(2026, 6, 1, 0, 0, 0)
+    created_to = datetime(2026, 6, 3, 0, 0, 0)
+    session = FakeSession([FakeResult([job_row(status="failed", document_id=document_id)])])
+    repository = IngestionJobRepository(session)
+
+    async def call_repository():
+        return await repository.list_jobs(
+            tenant_id="tenant-a",
+            limit=10,
+            offset=20,
+            status="failed",
+            filename="manual",
+            content_type="application/pdf",
+            created_from=created_from,
+            created_to=created_to,
+            document_id=document_id,
+        )
+
+    jobs = anyio.run(call_repository)
+
+    assert jobs[0].status == "failed"
+    statement = str(session.calls[0][0])
+    assert "status = :status" in statement
+    assert "file_name ILIKE :filename" in statement
+    assert "content_type = :content_type" in statement
+    assert "created_at >= :created_from" in statement
+    assert "created_at <= :created_to" in statement
+    assert "document_id = :document_id" in statement
+    assert "OFFSET :offset" in statement
+    assert session.calls[0][1]["filename"] == "%manual%"
+    assert session.calls[0][1]["offset"] == 20
 
 
 def test_get_job_constrains_by_job_and_tenant():
@@ -242,3 +278,51 @@ def test_fail_stale_processing_jobs_returns_updated_count():
     statement = str(session.calls[0][0])
     assert "status = 'processing'" in statement
     assert session.calls[0][1]["stale_after_seconds"] == 900
+
+
+def test_retry_failed_job_resets_to_pending_and_clears_error():
+    row = job_row(status="pending")
+    row["attempts"] = 0
+    row["last_error"] = "parser unavailable"
+    session = FakeSession([FakeResult([row])])
+    repository = IngestionJobRepository(session)
+
+    async def call_repository():
+        return await repository.retry_failed_job(
+            tenant_id="tenant-a",
+            job_id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+
+    job = anyio.run(call_repository)
+
+    assert job is not None
+    assert job.status == "pending"
+    assert job.attempts == 0
+    assert session.committed is True
+    statement = str(session.calls[0][0])
+    assert "status = 'failed'" in statement
+    assert "attempts = 0" in statement
+    assert "tenant_id = :tenant_id" in statement
+
+
+def test_cancel_pending_job_marks_canceled():
+    row = job_row(status="canceled")
+    row["error_message"] = "Upload cancelado pelo usuario."
+    session = FakeSession([FakeResult([row])])
+    repository = IngestionJobRepository(session)
+
+    async def call_repository():
+        return await repository.cancel_pending_job(
+            tenant_id="tenant-a",
+            job_id=UUID("11111111-1111-1111-1111-111111111111"),
+        )
+
+    job = anyio.run(call_repository)
+
+    assert job is not None
+    assert job.status == "canceled"
+    assert job.error_message == "Upload cancelado pelo usuario."
+    assert session.committed is True
+    statement = str(session.calls[0][0])
+    assert "status = 'pending'" in statement
+    assert "status = 'canceled'" in statement
