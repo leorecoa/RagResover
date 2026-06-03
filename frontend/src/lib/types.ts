@@ -27,6 +27,46 @@ export interface UploadResponse {
   message: string;
 }
 
+export interface DocumentItem {
+  id: string;
+  file_name: string;
+  content_type: string;
+  file_size: number;
+  chunks_count: number;
+  tenant_id: string;
+  created_at: string;
+  metadata: Metadata;
+}
+
+export interface DocumentListResponse {
+  documents: DocumentItem[];
+}
+
+export type DocumentDetailResponse = DocumentItem;
+
+export interface DocumentChunk {
+  id: string;
+  document_id: string;
+  chunk_index: number;
+  content: string;
+  metadata: Metadata;
+  created_at: string;
+}
+
+export interface DocumentChunksResponse {
+  document_id: string;
+  page: number;
+  page_size: number;
+  total: number;
+  chunks: DocumentChunk[];
+}
+
+export interface DeleteDocumentResponse {
+  document_id: string;
+  status: string;
+  message: string;
+}
+
 export interface SearchRequest {
   query: string;
   top_k?: number;

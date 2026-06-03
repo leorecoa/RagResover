@@ -25,6 +25,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 ## Highlights
 
 - Document upload with validation and raw-file storage in MinIO
+- Tenant-scoped document management with detail, chunk inspection, and delete
 - Text extraction for TXT, Markdown, JSON, PDF, and DOCX
 - Text chunking with LangChain text splitters
 - Vector persistence in PostgreSQL with pgvector
@@ -125,6 +126,10 @@ Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
 | GET | `/health` | Lightweight liveness check |
 | GET | `/ready` | Dependency readiness check |
 | POST | `/upload` | Upload and index a document |
+| GET | `/documents` | List indexed documents for the current tenant |
+| GET | `/documents/{document_id}` | Inspect one tenant-scoped document |
+| GET | `/documents/{document_id}/chunks` | Inspect paginated chunks for a document |
+| DELETE | `/documents/{document_id}` | Delete one tenant-scoped document and its chunks |
 | POST | `/search` | Semantic search over indexed chunks |
 | POST | `/chat` | RAG answer with sources |
 
@@ -140,6 +145,7 @@ The React/Vite frontend in `frontend/` includes:
 
 - API readiness panel
 - document upload
+- document management with metadata and chunk inspection
 - semantic search
 - chat with source display
 

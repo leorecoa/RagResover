@@ -16,3 +16,4 @@ All notable changes to RagResover should be documented in this file.
 - Retrieval score thresholds, metadata filters, debug diagnostics, and a reranker interface.
 - MVP header/token authentication and tenant isolation for upload, search, and chat.
 - End-to-end local demo flow with generated PDF/DOCX fixtures, debug diagnostics, and tenant isolation checks.
+- Tenant-scoped document management API and UI for listing, inspecting chunks, filtering, and deleting documents.

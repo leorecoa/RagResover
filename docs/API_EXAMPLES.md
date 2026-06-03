@@ -95,6 +95,68 @@ When `DEBUG=true`, the response includes retrieval diagnostics:
 }
 ```
 
+## Documents
+
+List tenant documents:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/documents `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Filter by source/content type:
+
+```powershell
+Invoke-RestMethod "http://localhost:8000/documents?source=manual&content_type=application/pdf" `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Example response:
+
+```json
+{
+  "documents": [
+    {
+      "id": "67a96a52-3b77-4efa-b6eb-e065ca66c4f4",
+      "file_name": "manual.pdf",
+      "content_type": "application/pdf",
+      "file_size": 2048,
+      "chunks_count": 4,
+      "tenant_id": "tenant-demo",
+      "created_at": "2026-06-01T12:00:00",
+      "metadata": {
+        "source": "manual.pdf"
+      }
+    }
+  ]
+}
+```
+
+Inspect one document:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/documents/67a96a52-3b77-4efa-b6eb-e065ca66c4f4 `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Inspect chunks:
+
+```powershell
+Invoke-RestMethod "http://localhost:8000/documents/67a96a52-3b77-4efa-b6eb-e065ca66c4f4/chunks?page=1&page_size=20" `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Delete a document and its chunks:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/documents/67a96a52-3b77-4efa-b6eb-e065ca66c4f4 `
+  -Method Delete `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+All document management endpoints are tenant-scoped. A document uploaded by
+`tenant-other` returns `404` when accessed from `tenant-demo`.
+
 ## Chat
 
 ```powershell
