@@ -1,11 +1,17 @@
 import logging
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import TenantContext, get_tenant_context
-from app.api.schemas.ingestion import UploadJobListResponse, UploadJobResponse, UploadResponse
+from app.api.schemas.ingestion import (
+    UploadJobListResponse,
+    UploadJobResponse,
+    UploadJobStatus,
+    UploadResponse,
+)
 from app.core.config import settings
 from app.db.session import get_db_session
 from app.repositories.ingestion_jobs import IngestionJobRecord, IngestionJobRepository
@@ -63,6 +69,20 @@ def parse_job_id(job_id: str) -> UUID:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Upload job nao encontrado.",
         ) from exc
+
+
+def not_found_response() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Upload job nao encontrado.",
+    )
+
+
+def invalid_action_response(detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=detail,
+    )
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -130,14 +150,33 @@ async def upload_document(
 @router.get("/uploads", response_model=UploadJobListResponse)
 async def list_upload_jobs(
     limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status_filter: UploadJobStatus | None = Query(default=None, alias="status"),
+    filename: str | None = Query(default=None),
+    content_type: str | None = Query(default=None),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
+    document_id: UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_db_session),
     tenant: TenantContext = Depends(get_tenant_context),
 ):
     jobs = await IngestionJobRepository(session).list_jobs(
         tenant_id=tenant.tenant_id,
         limit=limit,
+        offset=offset,
+        status=status_filter,
+        filename=filename,
+        content_type=content_type,
+        created_from=created_from,
+        created_to=created_to,
+        document_id=document_id,
     )
-    return {"uploads": [upload_job_payload(job) for job in jobs]}
+    return {
+        "uploads": [upload_job_payload(job) for job in jobs],
+        "limit": limit,
+        "offset": offset,
+        "count": len(jobs),
+    }
 
 
 @router.get("/uploads/{job_id}", response_model=UploadJobResponse)
@@ -151,8 +190,70 @@ async def get_upload_job(
         job_id=parse_job_id(job_id),
     )
     if job is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Upload job nao encontrado.",
-        )
+        raise not_found_response()
     return upload_job_payload(job)
+
+
+@router.post("/uploads/{job_id}/retry", response_model=UploadJobResponse)
+async def retry_upload_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    tenant: TenantContext = Depends(get_tenant_context),
+):
+    parsed_job_id = parse_job_id(job_id)
+    jobs = IngestionJobRepository(session)
+    job = await jobs.get_job(tenant_id=tenant.tenant_id, job_id=parsed_job_id)
+    if job is None:
+        raise not_found_response()
+    if job.status != "failed":
+        raise invalid_action_response("Apenas upload jobs failed podem receber retry manual.")
+
+    retried = await jobs.retry_failed_job(
+        tenant_id=tenant.tenant_id,
+        job_id=parsed_job_id,
+    )
+    if retried is None:
+        raise invalid_action_response("Upload job nao pode receber retry neste estado.")
+
+    try:
+        await get_ingestion_queue().enqueue(retried.id)
+    except Exception as exc:
+        logger.exception("Erro ao reenfileirar upload job %s", retried.id)
+        await jobs.fail_job(
+            job_id=retried.id,
+            error_message=f"Fila de ingestao indisponivel: {exc}",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Fila de ingestao indisponivel.",
+        ) from exc
+
+    return upload_job_payload(retried, message="Upload job reenfileirado para processamento.")
+
+
+@router.post("/uploads/{job_id}/cancel", response_model=UploadJobResponse)
+async def cancel_upload_job(
+    job_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    tenant: TenantContext = Depends(get_tenant_context),
+):
+    parsed_job_id = parse_job_id(job_id)
+    jobs = IngestionJobRepository(session)
+    job = await jobs.get_job(tenant_id=tenant.tenant_id, job_id=parsed_job_id)
+    if job is None:
+        raise not_found_response()
+    if job.status == "processing":
+        raise invalid_action_response(
+            "Upload job em processamento nao pode ser cancelado com seguranca."
+        )
+    if job.status != "pending":
+        raise invalid_action_response("Apenas upload jobs pending podem ser cancelados.")
+
+    canceled = await jobs.cancel_pending_job(
+        tenant_id=tenant.tenant_id,
+        job_id=parsed_job_id,
+    )
+    if canceled is None:
+        raise invalid_action_response("Upload job nao pode ser cancelado neste estado.")
+
+    return upload_job_payload(canceled, message="Upload job cancelado.")

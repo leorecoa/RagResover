@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-UploadJobStatus = Literal["pending", "processing", "completed", "failed"]
+UploadJobStatus = Literal["pending", "processing", "completed", "failed", "canceled"]
 
 
 class UploadJobResponse(BaseModel):
@@ -31,3 +31,6 @@ class UploadResponse(UploadJobResponse):
 
 class UploadJobListResponse(BaseModel):
     uploads: list[UploadJobResponse]
+    limit: int
+    offset: int
+    count: int

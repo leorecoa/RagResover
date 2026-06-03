@@ -34,6 +34,28 @@ function expectTenantHeaders(request: Request) {
   expect(headers.authorization).toBe("Bearer demo-token");
 }
 
+function uploadJob(overrides: Record<string, unknown> = {}) {
+  return {
+    job_id: "job-upload-1",
+    filename: "policy.pdf",
+    content_type: "application/pdf",
+    file_size: 2048,
+    status: "pending",
+    tenant_id: "tenant-alpha",
+    error_message: null,
+    attempts: 0,
+    max_attempts: 3,
+    last_error: null,
+    document_id: null,
+    created_at: "2026-06-03T12:00:00",
+    updated_at: "2026-06-03T12:00:00",
+    started_at: null,
+    finished_at: null,
+    message: "Upload recebido para processamento.",
+    ...overrides,
+  };
+}
+
 test.beforeEach(async ({ page }) => {
   await mockBaseApi(page);
 });
@@ -56,23 +78,20 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
     await route.fulfill({
       status: 202,
       contentType: "application/json",
+      body: JSON.stringify(uploadJob()),
+    });
+  });
+
+  await page.route("**/uploads?**", async (route) => {
+    expectTenantHeaders(route.request());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
       body: JSON.stringify({
-        job_id: "job-upload-1",
-        filename: "policy.pdf",
-        content_type: "application/pdf",
-        file_size: 2048,
-        status: "pending",
-        tenant_id: "tenant-alpha",
-        error_message: null,
-        attempts: 0,
-        max_attempts: 3,
-        last_error: null,
-        document_id: null,
-        created_at: "2026-06-03T12:00:00",
-        updated_at: "2026-06-03T12:00:00",
-        started_at: null,
-        finished_at: null,
-        message: "Upload recebido para processamento.",
+        uploads: [],
+        limit: 10,
+        offset: 0,
+        count: 0,
       }),
     });
   });
@@ -83,24 +102,14 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        job_id: "job-upload-1",
-        filename: "policy.pdf",
-        content_type: "application/pdf",
-        file_size: 2048,
+      body: JSON.stringify(uploadJob({
         status: statusCalls > 1 ? "completed" : "processing",
-        tenant_id: "tenant-alpha",
-        error_message: null,
         attempts: 1,
-        max_attempts: 3,
-        last_error: null,
         document_id: statusCalls > 1 ? "doc-upload-1" : null,
-        created_at: "2026-06-03T12:00:00",
         updated_at: "2026-06-03T12:00:01",
         started_at: "2026-06-03T12:00:01",
         finished_at: statusCalls > 1 ? "2026-06-03T12:00:03" : null,
-        message: "Upload recebido para processamento.",
-      }),
+      })),
     });
   });
 
@@ -123,6 +132,105 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
   await expect(page.getByText("1/3").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Abrir Documents" })).toBeVisible();
   expect(statusCalls).toBeGreaterThan(1);
+});
+
+test("manages upload job history with filters, retry and cancel", async ({ page }) => {
+  let sawFilteredRequest = false;
+  let retryCalled = false;
+  let cancelCalled = false;
+
+  await page.route("**/uploads/job-failed/retry", async (route) => {
+    expectTenantHeaders(route.request());
+    retryCalled = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(uploadJob({
+        job_id: "job-failed",
+        filename: "failed.pdf",
+        status: "pending",
+        attempts: 0,
+        last_error: "Arquivo PDF invalido.",
+        message: "Upload job reenfileirado para processamento.",
+      })),
+    });
+  });
+
+  await page.route("**/uploads/job-pending/cancel", async (route) => {
+    expectTenantHeaders(route.request());
+    cancelCalled = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(uploadJob({
+        job_id: "job-pending",
+        filename: "pending.docx",
+        content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        status: "canceled",
+        error_message: "Upload cancelado pelo usuario.",
+        message: "Upload job cancelado.",
+      })),
+    });
+  });
+
+  await page.route("**/uploads?**", async (route) => {
+    expectTenantHeaders(route.request());
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("status") === "failed") {
+      sawFilteredRequest = true;
+      expect(url.searchParams.get("filename")).toBe("failed");
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        uploads: [
+          uploadJob({
+            job_id: "job-failed",
+            filename: "failed.pdf",
+            status: "failed",
+            attempts: 3,
+            error_message: "Arquivo PDF invalido.",
+            last_error: "Arquivo PDF invalido.",
+            finished_at: "2026-06-03T12:04:00",
+          }),
+          uploadJob({
+            job_id: "job-pending",
+            filename: "pending.docx",
+            content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            status: "pending",
+            attempts: 0,
+          }),
+        ],
+        limit: 10,
+        offset: 0,
+        count: 2,
+      }),
+    });
+  });
+
+  await page.goto("/");
+  await page.getByLabel("Tenant ID").fill("tenant-alpha");
+  await page.getByLabel("API token").fill("demo-token");
+  await page.getByRole("button", { name: /Upload Ingestao/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Upload jobs" })).toBeVisible();
+  await expect(page.getByText("failed.pdf")).toBeVisible();
+  await expect(page.getByText("pending.docx")).toBeVisible();
+  await expect(page.getByText("Arquivo PDF invalido.").first()).toBeVisible();
+
+  await page.getByLabel("Filtro por status de upload").selectOption("failed");
+  await page.getByLabel("Filtro por filename de upload").fill("failed");
+  await page.getByRole("button", { name: "Filtrar uploads" }).click();
+  expect(sawFilteredRequest).toBe(true);
+
+  await page.getByRole("button", { name: "Retry failed.pdf" }).click();
+  await expect(page.getByText("Job reenfileirado: failed.pdf")).toBeVisible();
+  expect(retryCalled).toBe(true);
+
+  await page.getByRole("button", { name: "Cancel pending.docx" }).click();
+  await expect(page.getByText("Job cancelado: pending.docx")).toBeVisible();
+  expect(cancelCalled).toBe(true);
 });
 
 test("manages documents with details, chunks, filters and delete", async ({ page }) => {

@@ -24,7 +24,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 
 ## Highlights
 
-- Async document upload with durable Redis queue, retries, and observable status
+- Async document upload with durable Redis queue, retries, observable status, and job actions
 - Tenant-scoped document management with detail, chunk inspection, and delete
 - Text extraction for TXT, Markdown, JSON, PDF, and DOCX
 - Text chunking with LangChain text splitters
@@ -128,6 +128,8 @@ Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
 | POST | `/upload` | Create an async upload processing job |
 | GET | `/uploads` | List upload jobs for the current tenant |
 | GET | `/uploads/{job_id}` | Inspect one upload job status |
+| POST | `/uploads/{job_id}/retry` | Retry a failed upload job |
+| POST | `/uploads/{job_id}/cancel` | Cancel a pending upload job |
 | GET | `/documents` | List indexed documents for the current tenant |
 | GET | `/documents/{document_id}` | Inspect one tenant-scoped document |
 | GET | `/documents/{document_id}/chunks` | Inspect paginated chunks for a document |
@@ -139,7 +141,7 @@ Examples: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md).
 
 Search and chat accept optional `score_threshold` and `metadata_filters` fields. When `DEBUG=true`, responses include retrieval diagnostics such as fetch size, effective threshold, filters, embedding provider, and reranker provider.
 
-Upload now stores the raw file in MinIO, returns `202 Accepted` with a `job_id`, and enqueues the job. Poll `GET /uploads/{job_id}` until the status is `completed` or `failed`; completed jobs include the indexed `document_id`, while failed jobs include attempts and error details.
+Upload now stores the raw file in MinIO, returns `202 Accepted` with a `job_id`, and enqueues the job. Poll `GET /uploads/{job_id}` until the status is `completed`, `failed`, or `canceled`; completed jobs include the indexed `document_id`, while failed jobs include attempts and error details. `GET /uploads` supports filters such as `status`, `filename`, `content_type`, date range, `document_id`, `limit`, and `offset`.
 
 Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`.
 
@@ -149,6 +151,7 @@ The React/Vite frontend in `frontend/` includes:
 
 - API readiness panel
 - async document upload with processing status
+- upload job history with filters, retry, and cancel actions
 - document management with metadata and chunk inspection
 - semantic search
 - chat with source display

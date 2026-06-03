@@ -125,6 +125,32 @@ Invoke-RestMethod "http://localhost:8000/uploads?limit=20" `
   -Headers @{ "X-Tenant-ID" = "tenant-demo" }
 ```
 
+Filter and paginate upload jobs:
+
+```powershell
+Invoke-RestMethod "http://localhost:8000/uploads?status=failed&filename=manual&content_type=application/pdf&limit=10&offset=0" `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Retry a failed upload job:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/uploads/d7cefc92-9a7f-4ca3-9b52-b6e68853218e/retry `
+  -Method Post `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Cancel a pending upload job:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/uploads/d7cefc92-9a7f-4ca3-9b52-b6e68853218e/cancel `
+  -Method Post `
+  -Headers @{ "X-Tenant-ID" = "tenant-demo" }
+```
+
+Only `failed` jobs can be retried manually. Only `pending` jobs can be canceled;
+`processing` jobs are already running in the worker and return `409 Conflict`.
+
 ## Search
 
 ```powershell

@@ -25,11 +25,12 @@ interface UploadPanelProps extends ApiRequestOptions {
   onOpenDocuments: () => void;
 }
 
-const statusTone: Record<UploadJobStatus, "success" | "warning" | "danger" | "info"> = {
+const statusTone: Record<UploadJobStatus, "success" | "warning" | "danger" | "info" | "neutral"> = {
   pending: "warning",
   processing: "info",
   completed: "success",
   failed: "danger",
+  canceled: "neutral",
 };
 
 const statusIcon: Record<UploadJobStatus, JSX.Element> = {
@@ -37,9 +38,10 @@ const statusIcon: Record<UploadJobStatus, JSX.Element> = {
   processing: <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />,
   completed: <CheckCircle2 className="h-5 w-5" aria-hidden="true" />,
   failed: <XCircle className="h-5 w-5" aria-hidden="true" />,
+  canceled: <XCircle className="h-5 w-5" aria-hidden="true" />,
 };
 
-const terminalStatuses: UploadJobStatus[] = ["completed", "failed"];
+const terminalStatuses: UploadJobStatus[] = ["completed", "failed", "canceled"];
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -107,6 +109,11 @@ export function UploadPanel({
       if (latestJob.status === "failed") {
         setIsPolling(false);
         setError(latestJob.error_message || "Falha ao processar o documento.");
+        return;
+      }
+
+      if (latestJob.status === "canceled") {
+        setIsPolling(false);
         return;
       }
 
@@ -267,7 +274,9 @@ export function UploadPanel({
                         ? "Upload completed"
                         : uploadResult.status === "failed"
                           ? "Upload failed"
-                          : "Upload em processamento"}
+                          : uploadResult.status === "canceled"
+                            ? "Upload canceled"
+                            : "Upload em processamento"}
                     </p>
                     <p className="text-xs text-slate-500">{uploadResult.message}</p>
                   </div>

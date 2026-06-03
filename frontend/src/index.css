@@ -36,6 +36,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -43,6 +44,7 @@ textarea {
 button,
 a,
 input,
+select,
 textarea {
   outline: none;
 }
@@ -50,6 +52,7 @@ textarea {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
+select:focus-visible,
 textarea:focus-visible {
   box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.26);
 }
@@ -88,5 +91,21 @@ textarea:focus-visible {
     color: #cbd5e1;
     font-size: 0.78rem;
     font-weight: 700;
+  }
+
+  .input-surface {
+    min-height: 2.75rem;
+    width: 100%;
+    border-radius: 0.375rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 0 0.75rem;
+    color: #f8fafc;
+    font-size: 0.875rem;
+    transition: border-color 160ms ease, background-color 160ms ease;
+  }
+
+  .input-surface:hover {
+    background: rgba(255, 255, 255, 0.09);
   }
 }

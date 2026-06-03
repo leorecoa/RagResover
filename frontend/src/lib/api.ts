@@ -10,6 +10,7 @@ import type {
   ReadyResponse,
   SearchRequest,
   SearchResponse,
+  UploadJobFilters,
   UploadJobListResponse,
   UploadJobResponse,
   UploadResponse,
@@ -117,10 +118,59 @@ export function getUploadJob(
 }
 
 export function listUploadJobs(
+  filters: UploadJobFilters = {},
   options?: ApiRequestOptions,
-  limit = 50,
 ): Promise<UploadJobListResponse> {
-  return requestJson<UploadJobListResponse>(`/uploads?limit=${limit}`, undefined, options);
+  const params = new URLSearchParams({
+    limit: String(filters.limit ?? 10),
+    offset: String(filters.offset ?? 0),
+  });
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  if (filters.filename?.trim()) {
+    params.set("filename", filters.filename.trim());
+  }
+  if (filters.contentType?.trim()) {
+    params.set("content_type", filters.contentType.trim());
+  }
+  if (filters.createdFrom?.trim()) {
+    params.set("created_from", filters.createdFrom.trim());
+  }
+  if (filters.createdTo?.trim()) {
+    params.set("created_to", filters.createdTo.trim());
+  }
+  if (filters.documentId?.trim()) {
+    params.set("document_id", filters.documentId.trim());
+  }
+
+  return requestJson<UploadJobListResponse>(
+    `/uploads?${params.toString()}`,
+    undefined,
+    options,
+  );
+}
+
+export function retryUploadJob(
+  jobId: string,
+  options?: ApiRequestOptions,
+): Promise<UploadJobResponse> {
+  return requestJson<UploadJobResponse>(
+    `/uploads/${jobId}/retry`,
+    { method: "POST" },
+    options,
+  );
+}
+
+export function cancelUploadJob(
+  jobId: string,
+  options?: ApiRequestOptions,
+): Promise<UploadJobResponse> {
+  return requestJson<UploadJobResponse>(
+    `/uploads/${jobId}/cancel`,
+    { method: "POST" },
+    options,
+  );
 }
 
 export function listDocuments(
