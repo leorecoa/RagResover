@@ -1,12 +1,12 @@
 # Architecture
 
-RagResover is organized as a modular FastAPI backend with a static demo frontend.
+RagResover is organized as a modular FastAPI backend with a React/Vite frontend.
 
 ## Runtime Components
 
 ```text
 Browser
-  -> frontend static app
+  -> React/Vite frontend
   -> FastAPI backend
   -> PostgreSQL + pgvector
   -> MinIO object storage
@@ -56,6 +56,29 @@ POST /upload
 
 PDF parsing preserves page metadata when text is extractable. DOCX parsing preserves paragraph metadata and section headings when available.
 
+## Document Management Flow
+
+```text
+GET /documents
+  -> resolve tenant from headers/config
+  -> list source_documents scoped by tenant_id
+  -> include chunk counts and document metadata
+
+GET /documents/{document_id}
+  -> resolve tenant from headers/config
+  -> return document details only when tenant_id matches
+
+GET /documents/{document_id}/chunks
+  -> resolve tenant from headers/config
+  -> verify document ownership
+  -> return paginated chunks ordered by chunk_index
+
+DELETE /documents/{document_id}
+  -> resolve tenant from headers/config
+  -> delete only matching tenant document
+  -> cascade-delete document_chunks through the database foreign key
+```
+
 ## Retrieval Flow
 
 ```text
@@ -95,7 +118,7 @@ Primary tables are managed through Alembic migrations:
 
 `scripts/init_db.sql` only bootstraps PostgreSQL extensions and schema search path for local Docker startup.
 
-Tenant isolation is stored in `tenant_id` columns. Upload writes the current tenant into `source_documents` and `document_chunks`; search/chat filter by that same tenant before returning context.
+Tenant isolation is stored in `tenant_id` columns. Upload writes the current tenant into `source_documents` and `document_chunks`; document management, search, and chat filter by that same tenant before returning data.
 
 ## Authentication
 
@@ -135,4 +158,5 @@ RagResover supports:
 - Upload reads the whole file into memory.
 - Scanned PDFs without embedded text are not OCR-processed yet.
 - HTML parsing is not implemented yet.
+- Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.
 - Authentication is MVP header/token based, not full user account management yet.

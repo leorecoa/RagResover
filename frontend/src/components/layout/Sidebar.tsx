@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  FileStack,
   FileUp,
   MessageSquareText,
   Search,
@@ -9,7 +10,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
-export type PageKey = "dashboard" | "upload" | "search" | "chat";
+export type PageKey = "dashboard" | "documents" | "upload" | "search" | "chat";
 
 interface NavItem {
   key: PageKey;
@@ -30,6 +31,12 @@ const navItems: NavItem[] = [
     label: "Upload",
     description: "Ingestao",
     icon: FileUp,
+  },
+  {
+    key: "documents",
+    label: "Documents",
+    description: "Library",
+    icon: FileStack,
   },
   {
     key: "search",

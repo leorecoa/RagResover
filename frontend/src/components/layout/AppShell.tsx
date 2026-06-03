@@ -37,6 +37,7 @@ export function AppShell({
 }: AppShellProps) {
   const mobilePages: Array<{ key: PageKey; label: string }> = [
     { key: "dashboard", label: "Dashboard" },
+    { key: "documents", label: "Documents" },
     { key: "upload", label: "Upload" },
     { key: "search", label: "Search" },
     { key: "chat", label: "Chat" },

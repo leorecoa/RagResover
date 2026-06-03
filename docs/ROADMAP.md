@@ -9,6 +9,7 @@
 
 ## Document Processing
 
+- Add `POST /documents/{document_id}/reindex`.
 - Add HTML parser.
 - Add OCR for scanned PDFs.
 - Preserve metadata such as page number and section title.

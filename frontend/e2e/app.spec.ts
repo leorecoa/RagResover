@@ -81,6 +81,138 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
   await expect(page.getByText("3").first()).toBeVisible();
 });
 
+test("manages documents with details, chunks, filters and delete", async ({ page }) => {
+  let deleteCalled = false;
+  let sawFilteredRequest = false;
+
+  await page.route("**/documents**", async (route) => {
+    expectTenantHeaders(route.request());
+    const request = route.request();
+    const url = new URL(request.url());
+
+    if (request.method() === "GET" && url.pathname === "/documents") {
+      if ((url.searchParams.get("source") ?? "") === "manual") {
+        sawFilteredRequest = true;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          documents: deleteCalled
+            ? []
+            : [
+                {
+                  id: "11111111-1111-1111-1111-111111111111",
+                  file_name: "manual.pdf",
+                  content_type: "application/pdf",
+                  file_size: 2048,
+                  chunks_count: 2,
+                  tenant_id: "tenant-alpha",
+                  created_at: "2026-06-01T12:00:00",
+                  metadata: {
+                    source: "manual.pdf",
+                    page_count: 4,
+                  },
+                },
+              ],
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === "GET" && url.pathname.endsWith("/chunks")) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          document_id: "11111111-1111-1111-1111-111111111111",
+          page: 1,
+          page_size: 20,
+          total: 2,
+          chunks: [
+            {
+              id: "22222222-2222-2222-2222-222222222222",
+              document_id: "11111111-1111-1111-1111-111111111111",
+              chunk_index: 0,
+              content: "Retention window is 180 days.",
+              metadata: {
+                source: "manual.pdf",
+                page: 1,
+              },
+              created_at: "2026-06-01T12:01:00",
+            },
+          ],
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "11111111-1111-1111-1111-111111111111",
+          file_name: "manual.pdf",
+          content_type: "application/pdf",
+          file_size: 2048,
+          chunks_count: 2,
+          tenant_id: "tenant-alpha",
+          created_at: "2026-06-01T12:00:00",
+          metadata: {
+            source: "manual.pdf",
+            page_count: 4,
+          },
+        }),
+      });
+      return;
+    }
+
+    if (request.method() === "DELETE") {
+      deleteCalled = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          document_id: "11111111-1111-1111-1111-111111111111",
+          status: "deleted",
+          message: "Documento e chunks removidos.",
+        }),
+      });
+      return;
+    }
+
+    await route.fallback();
+  });
+
+  await page.goto("/");
+  await page.getByLabel("Tenant ID").fill("tenant-alpha");
+  await page.getByLabel("API token").fill("demo-token");
+  await page.getByRole("button", { name: /Documents Library/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Documents" }).first()).toBeVisible();
+  await expect(page.getByText("manual.pdf").first()).toBeVisible();
+  await expect(page.getByText("application/pdf").first()).toBeVisible();
+  await expect(page.getByText("Retention window is 180 days.")).toBeVisible();
+  await expect(page.getByText("source: manual.pdf")).toBeVisible();
+  await expect(page.getByText("page_count")).toBeVisible();
+
+  await page.getByLabel("Filtrar por source").fill("manual");
+  await page.getByRole("button", { name: "Filtrar documentos" }).click();
+  await expect(page.getByText("manual.pdf").first()).toBeVisible();
+  expect(sawFilteredRequest).toBe(true);
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("manual.pdf");
+    await dialog.accept();
+  });
+  await page.getByRole("button", { name: "Delete" }).click();
+
+  await expect(page.getByText("manual.pdf removido.")).toBeVisible();
+  await expect(page.getByText("Sem documentos")).toBeVisible();
+  expect(deleteCalled).toBe(true);
+});
+
 test("runs semantic search with retrieval controls and diagnostics", async ({ page }) => {
   let capturedBody: unknown;
 

@@ -15,6 +15,7 @@ import { AppShell } from "./components/layout/AppShell";
 import type { PageKey } from "./components/layout/Sidebar";
 import { Chat } from "./pages/Chat";
 import { Dashboard } from "./pages/Dashboard";
+import { Documents } from "./pages/Documents";
 import { SearchPage } from "./pages/Search";
 import { Upload } from "./pages/Upload";
 
@@ -26,6 +27,10 @@ const pageCopy: Record<PageKey, { title: string; subtitle: string }> = {
   upload: {
     title: "Upload",
     subtitle: "Ingestao de TXT, Markdown, JSON, PDF e DOCX.",
+  },
+  documents: {
+    title: "Documents",
+    subtitle: "Gestao de documentos, metadados e chunks por tenant.",
   },
   search: {
     title: "Search",
@@ -148,6 +153,18 @@ export default function App() {
     [addActivity],
   );
 
+  const handleDeleted = useCallback(
+    (document: { file_name: string; chunks_count: number }) => {
+      setDocumentsCount((current) => Math.max(0, current - 1));
+      addActivity({
+        label: `Delete: ${document.file_name}`,
+        detail: `${document.chunks_count} chunks removidos`,
+        tone: "cyan",
+      });
+    },
+    [addActivity],
+  );
+
   const handleSearched = useCallback(
     (response: SearchResponse) => {
       addActivity({
@@ -198,6 +215,8 @@ export default function App() {
         );
       case "upload":
         return <Upload {...requestOptions} onUploaded={handleUploaded} />;
+      case "documents":
+        return <Documents {...requestOptions} onDeleted={handleDeleted} />;
       case "search":
         return (
           <SearchPage
@@ -225,6 +244,7 @@ export default function App() {
     documentsCount,
     handleAnswered,
     handleDiagnostics,
+    handleDeleted,
     handleSearched,
     handleUploaded,
     health,

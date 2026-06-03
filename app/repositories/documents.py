@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -25,6 +26,28 @@ class SearchResult:
     metadata: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class DocumentRecord:
+    id: UUID
+    tenant_id: str
+    file_name: str
+    content_type: str
+    file_size: int
+    chunks_count: int
+    created_at: datetime
+    metadata: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class DocumentChunkRecord:
+    id: UUID
+    document_id: UUID
+    chunk_index: int
+    content: str
+    metadata: dict[str, Any]
+    created_at: datetime
+
+
 def serialize_vector(vector: list[float] | None) -> str | None:
     if vector is None:
         return None
@@ -48,6 +71,213 @@ def normalize_metadata(metadata: Any) -> dict[str, Any]:
 class DocumentRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    @staticmethod
+    def _document_from_row(row) -> DocumentRecord:
+        return DocumentRecord(
+            id=row["id"],
+            tenant_id=row["tenant_id"],
+            file_name=row["file_name"],
+            content_type=row["content_type"],
+            file_size=int(row["file_size"]),
+            chunks_count=int(row["chunks_count"]),
+            created_at=row["created_at"],
+            metadata=normalize_metadata(row["metadata"]),
+        )
+
+    @staticmethod
+    def _chunk_from_row(row) -> DocumentChunkRecord:
+        return DocumentChunkRecord(
+            id=row["id"],
+            document_id=row["document_id"],
+            chunk_index=int(row["chunk_index"]),
+            content=row["content"],
+            metadata=normalize_metadata(row["metadata"]),
+            created_at=row["created_at"],
+        )
+
+    async def list_documents(
+        self,
+        *,
+        tenant_id: str,
+        source: str | None = None,
+        content_type: str | None = None,
+    ) -> list[DocumentRecord]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    sd.id,
+                    sd.tenant_id,
+                    sd.file_name,
+                    sd.content_type,
+                    sd.file_size,
+                    sd.created_at,
+                    sd.metadata,
+                    COUNT(dc.id)::int AS chunks_count
+                FROM source_documents sd
+                LEFT JOIN document_chunks dc
+                    ON dc.source_document_id = sd.id
+                    AND dc.tenant_id = :tenant_id
+                WHERE
+                    sd.tenant_id = :tenant_id
+                    AND (
+                        :source IS NULL
+                        OR sd.file_name ILIKE '%' || :source || '%'
+                        OR sd.metadata ->> 'source' ILIKE '%' || :source || '%'
+                    )
+                    AND (
+                        :content_type IS NULL
+                        OR sd.content_type = :content_type
+                    )
+                GROUP BY
+                    sd.id,
+                    sd.tenant_id,
+                    sd.file_name,
+                    sd.content_type,
+                    sd.file_size,
+                    sd.created_at,
+                    sd.metadata
+                ORDER BY sd.created_at DESC
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "source": source.strip() if source and source.strip() else None,
+                "content_type": (
+                    content_type.strip() if content_type and content_type.strip() else None
+                ),
+            },
+        )
+        return [self._document_from_row(row) for row in result.mappings().all()]
+
+    async def get_document(
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+    ) -> DocumentRecord | None:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    sd.id,
+                    sd.tenant_id,
+                    sd.file_name,
+                    sd.content_type,
+                    sd.file_size,
+                    sd.created_at,
+                    sd.metadata,
+                    COUNT(dc.id)::int AS chunks_count
+                FROM source_documents sd
+                LEFT JOIN document_chunks dc
+                    ON dc.source_document_id = sd.id
+                    AND dc.tenant_id = :tenant_id
+                WHERE
+                    sd.id = :document_id
+                    AND sd.tenant_id = :tenant_id
+                GROUP BY
+                    sd.id,
+                    sd.tenant_id,
+                    sd.file_name,
+                    sd.content_type,
+                    sd.file_size,
+                    sd.created_at,
+                    sd.metadata
+                """
+            ),
+            {"tenant_id": tenant_id, "document_id": document_id},
+        )
+        row = result.mappings().first()
+        return self._document_from_row(row) if row else None
+
+    async def count_document_chunks(
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+    ) -> int:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT COUNT(dc.id)::int
+                FROM document_chunks dc
+                JOIN source_documents sd ON sd.id = dc.source_document_id
+                WHERE
+                    dc.source_document_id = :document_id
+                    AND dc.tenant_id = :tenant_id
+                    AND sd.tenant_id = :tenant_id
+                """
+            ),
+            {"tenant_id": tenant_id, "document_id": document_id},
+        )
+        return int(result.scalar_one())
+
+    async def list_document_chunks(
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+        limit: int,
+        offset: int,
+    ) -> list[DocumentChunkRecord]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    dc.id,
+                    dc.source_document_id AS document_id,
+                    dc.chunk_index,
+                    dc.content,
+                    dc.metadata,
+                    dc.created_at
+                FROM document_chunks dc
+                JOIN source_documents sd ON sd.id = dc.source_document_id
+                WHERE
+                    dc.source_document_id = :document_id
+                    AND dc.tenant_id = :tenant_id
+                    AND sd.tenant_id = :tenant_id
+                ORDER BY dc.chunk_index ASC
+                LIMIT :limit
+                OFFSET :offset
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "document_id": document_id,
+                "limit": int(limit),
+                "offset": int(offset),
+            },
+        )
+        return [self._chunk_from_row(row) for row in result.mappings().all()]
+
+    async def delete_document(
+        self,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+    ) -> bool:
+        try:
+            result = await self.session.execute(
+                text(
+                    """
+                    DELETE FROM source_documents
+                    WHERE id = :document_id
+                    AND tenant_id = :tenant_id
+                    RETURNING id
+                    """
+                ),
+                {"tenant_id": tenant_id, "document_id": document_id},
+            )
+            deleted_id = result.scalar_one_or_none()
+            if deleted_id is None:
+                await self.session.rollback()
+                return False
+            await self.session.commit()
+            return True
+        except Exception:
+            await self.session.rollback()
+            raise
 
     async def create_source_document(
         self,

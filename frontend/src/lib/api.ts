@@ -2,6 +2,10 @@ import type {
   ApiRequestOptions,
   ChatRequest,
   ChatResponse,
+  DeleteDocumentResponse,
+  DocumentChunksResponse,
+  DocumentDetailResponse,
+  DocumentListResponse,
   HealthResponse,
   ReadyResponse,
   SearchRequest,
@@ -99,6 +103,59 @@ export function uploadDocument(
       method: "POST",
       body: formData,
     },
+    options,
+  );
+}
+
+export function listDocuments(
+  filters: { source?: string; contentType?: string } = {},
+  options?: ApiRequestOptions,
+): Promise<DocumentListResponse> {
+  const params = new URLSearchParams();
+  if (filters.source?.trim()) {
+    params.set("source", filters.source.trim());
+  }
+  if (filters.contentType?.trim()) {
+    params.set("content_type", filters.contentType.trim());
+  }
+  const query = params.toString();
+  return requestJson<DocumentListResponse>(
+    `/documents${query ? `?${query}` : ""}`,
+    undefined,
+    options,
+  );
+}
+
+export function getDocument(
+  documentId: string,
+  options?: ApiRequestOptions,
+): Promise<DocumentDetailResponse> {
+  return requestJson<DocumentDetailResponse>(`/documents/${documentId}`, undefined, options);
+}
+
+export function getDocumentChunks(
+  documentId: string,
+  params: { page?: number; pageSize?: number } = {},
+  options?: ApiRequestOptions,
+): Promise<DocumentChunksResponse> {
+  const query = new URLSearchParams({
+    page: String(params.page ?? 1),
+    page_size: String(params.pageSize ?? 20),
+  });
+  return requestJson<DocumentChunksResponse>(
+    `/documents/${documentId}/chunks?${query.toString()}`,
+    undefined,
+    options,
+  );
+}
+
+export function deleteDocument(
+  documentId: string,
+  options?: ApiRequestOptions,
+): Promise<DeleteDocumentResponse> {
+  return requestJson<DeleteDocumentResponse>(
+    `/documents/${documentId}`,
+    { method: "DELETE" },
     options,
   );
 }
