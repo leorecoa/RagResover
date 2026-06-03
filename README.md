@@ -1,22 +1,25 @@
 
 # RagResover
 
+```md
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Queue_Worker-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![MinIO](https://img.shields.io/badge/MinIO-Object_Storage-C72E49?style=for-the-badge&logo=minio&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Ollama](https://img.shields.io/badge/Ollama-Local_LLM-000000?style=for-the-badge&logo=ollama&logoColor=white)
-![OpenAI](https://img.shields.io/badge/OpenAI-Provider-412991?style=for-the-badge&logo=openai&logoColor=white)
-![LangChain](https://img.shields.io/badge/LangChain-Text_Splitting-1C3C3C?style=for-the-badge)
-![Alembic](https://img.shields.io/badge/Alembic-Migrations-6BA81E?style=for-the-badge)
-![Pytest](https://img.shields.io/badge/Pytest-Tested-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white)
 
-![RAG](https://img.shields.io/badge/RAG-Retrieval_Augmented_Generation-blueviolet?style=flat-square)
-![Local First](https://img.shields.io/badge/Local--First-Private_Documents-success?style=flat-square)
-![Semantic Search](https://img.shields.io/badge/Semantic_Search-pgvector-informational?style=flat-square)
-![Status](https://img.shields.io/badge/Status-MVP_in_progress-yellow?style=flat-square)
+![RAG](https://img.shields.io/badge/RAG-Document_AI-7C3AED?style=flat-square)
+![Tenant Isolation](https://img.shields.io/badge/Tenant_Isolation-Enabled-16A34A?style=flat-square)
+![Async Pipeline](https://img.shields.io/badge/Async_Pipeline-Jobs_%2B_Worker-2563EB?style=flat-square)
+![Tests](https://img.shields.io/badge/Tests-Pytest_%2B_Playwright-0A9EDC?style=flat-square)
+![CI](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+![Release](https://img.shields.io/badge/Release-v0.2.0-blue?style=flat-square)
+![Status](https://img.shields.io/badge/Status-Production--Oriented_MVP-success?style=flat-square)
 ![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)
+```
+
 
 RagResover is a local-first Retrieval-Augmented Generation platform for indexing private documents and asking questions over them with cited sources.
 
