@@ -88,6 +88,39 @@ def test_parse_docx_extracts_text_and_section_metadata():
     assert documents[1].metadata["paragraph"] == 2
 
 
+def test_parse_html_extracts_visible_text_and_metadata():
+    documents = parse_file_to_documents(
+        "manual.html",
+        b"""
+        <!doctype html>
+        <html>
+          <head>
+            <title>Manual Operacional</title>
+            <style>.hidden { display: none; }</style>
+          </head>
+          <body>
+            <h1>Politicas HTML</h1>
+            <p>O RagResover agora processa paginas HTML.</p>
+            <script>window.secret = "nao indexar";</script>
+          </body>
+        </html>
+        """,
+        "text/html",
+        "s3://documents/manual.html",
+    )
+
+    assert [document.page_content for document in documents] == [
+        "Politicas HTML",
+        "O RagResover agora processa paginas HTML.",
+    ]
+    assert documents[0].metadata["source"] == "manual.html"
+    assert documents[0].metadata["content_type"] == "text/html"
+    assert documents[0].metadata["title"] == "Manual Operacional"
+    assert documents[0].metadata["heading_level"] == 1
+    assert documents[1].metadata["section"] == "Politicas HTML"
+    assert all("nao indexar" not in document.page_content for document in documents)
+
+
 def test_parse_pdf_raises_clear_error_for_corrupted_file():
     with pytest.raises(DocumentParsingError, match="Arquivo PDF invalido"):
         parse_file_to_documents(
@@ -105,6 +138,16 @@ def test_parse_docx_raises_clear_error_for_corrupted_file():
             b"not-a-docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "s3://documents/broken.docx",
+        )
+
+
+def test_parse_html_raises_clear_error_without_visible_text():
+    with pytest.raises(DocumentParsingError, match="Arquivo HTML nao contem texto extraivel"):
+        parse_file_to_documents(
+            "empty.html",
+            b"<html><head><style>body { color: red; }</style></head><body> </body></html>",
+            "text/html",
+            "s3://documents/empty.html",
         )
 
 

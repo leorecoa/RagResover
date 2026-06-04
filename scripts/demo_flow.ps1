@@ -264,6 +264,20 @@ doc.add_paragraph(
 )
 doc.save(out / "ragresover-demo.docx")
 
+(out / "ragresover-demo.html").write_text(
+    """<!doctype html>
+<html>
+  <head><title>RagResover HTML Demo</title></head>
+  <body>
+    <h1>HTML Knowledge Base</h1>
+    <p>The HTML sample validates title and section metadata extraction.</p>
+    <p>The escalation window for HTML content is 48 hours.</p>
+  </body>
+</html>
+""",
+    encoding="utf-8",
+)
+
 (out / "tenant-other-secret.txt").write_text(
     "Other tenant private note. Quarterly revenue target is isolated from tenant demo.",
     encoding="utf-8",
@@ -278,11 +292,12 @@ doc.save(out / "ragresover-demo.docx")
     return @{
         Pdf = Join-Path $demoDir "ragresover-demo.pdf"
         Docx = Join-Path $demoDir "ragresover-demo.docx"
+        Html = Join-Path $demoDir "ragresover-demo.html"
         OtherTenantText = Join-Path $demoDir "tenant-other-secret.txt"
     }
 }
 
-Write-Step "Generating local PDF, DOCX, and tenant isolation fixtures"
+Write-Step "Generating local PDF, DOCX, HTML, and tenant isolation fixtures"
 $files = New-DemoFiles
 Show-DemoJson -Title "Generated files" -Value $files
 
@@ -322,6 +337,15 @@ Show-DemoJson -Title "DOCX upload response" -Value $docxUpload
 $docxUpload = Wait-DemoUploadJob -Job $docxUpload -Tenant $TenantId
 Show-DemoJson -Title "DOCX upload job completed" -Value $docxUpload
 
+Write-Step "Uploading HTML for $TenantId"
+$htmlUpload = Invoke-DemoUpload `
+    -FilePath $files.Html `
+    -ContentType "text/html" `
+    -Tenant $TenantId
+Show-DemoJson -Title "HTML upload response" -Value $htmlUpload
+$htmlUpload = Wait-DemoUploadJob -Job $htmlUpload -Tenant $TenantId
+Show-DemoJson -Title "HTML upload job completed" -Value $htmlUpload
+
 Write-Step "Searching indexed PDF with metadata filter and diagnostics"
 $pdfSearch = Invoke-JsonRequest `
     -Method "POST" `
@@ -353,6 +377,22 @@ $docxSearch = Invoke-JsonRequest `
     }
 Assert-HasResults -Payload $docxSearch -Label "DOCX search"
 Show-DemoJson -Title "DOCX search response" -Value $docxSearch
+
+Write-Step "Searching indexed HTML with metadata filter"
+$htmlSearch = Invoke-JsonRequest `
+    -Method "POST" `
+    -Path "/search" `
+    -Tenant $TenantId `
+    -Body @{
+        query = "What is the escalation window for HTML content?"
+        top_k = 5
+        score_threshold = -1.0
+        metadata_filters = @{
+            source = "ragresover-demo.html"
+        }
+    }
+Assert-HasResults -Payload $htmlSearch -Label "HTML search"
+Show-DemoJson -Title "HTML search response" -Value $htmlSearch
 
 if (-not $SkipChat) {
     Write-Step "Asking chat over the indexed PDF"

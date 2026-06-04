@@ -1,4 +1,5 @@
 import io
+from html.parser import HTMLParser
 from typing import Any
 
 from docx import Document as DocxDocument
@@ -11,6 +12,7 @@ DOCX_CONTENT_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 }
 TEXT_CONTENT_TYPES = {"text/plain", "text/markdown", "application/json"}
+HTML_CONTENT_TYPES = {"text/html", "application/xhtml+xml"}
 
 
 class DocumentParsingError(ValueError):
@@ -51,6 +53,8 @@ def parse_file_to_documents(
 
     if content_type in TEXT_CONTENT_TYPES:
         return parse_text(file_bytes=file_bytes, metadata=metadata)
+    if content_type in HTML_CONTENT_TYPES:
+        return parse_html(file_bytes=file_bytes, metadata=metadata)
     if content_type in PDF_CONTENT_TYPES:
         return parse_pdf(file_bytes=file_bytes, metadata=metadata)
     if content_type in DOCX_CONTENT_TYPES:
@@ -64,6 +68,156 @@ def parse_text(*, file_bytes: bytes, metadata: dict[str, Any]) -> list[Document]
     if not text:
         raise DocumentParsingError("Arquivo nao contem texto extraivel.")
     return [Document(page_content=text, metadata=metadata)]
+
+
+class _HTMLTextExtractor(HTMLParser):
+    block_tags = {
+        "address",
+        "article",
+        "aside",
+        "blockquote",
+        "br",
+        "dd",
+        "div",
+        "dl",
+        "dt",
+        "figcaption",
+        "figure",
+        "footer",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "header",
+        "hr",
+        "li",
+        "main",
+        "nav",
+        "ol",
+        "p",
+        "pre",
+        "section",
+        "table",
+        "td",
+        "th",
+        "tr",
+        "ul",
+    }
+    ignored_tags = {"script", "style", "noscript"}
+    heading_tags = {"h1", "h2", "h3", "h4", "h5", "h6"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.blocks: list[str] = []
+        self.title: str | None = None
+        self.headings: list[tuple[int, str]] = []
+        self._current: list[str] = []
+        self._ignored_depth = 0
+        self._capture_title = False
+        self._title_parts: list[str] = []
+        self._current_heading_level: int | None = None
+        self._heading_parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized = tag.lower()
+        if normalized in self.ignored_tags:
+            self._ignored_depth += 1
+            return
+        if self._ignored_depth:
+            return
+        if normalized == "title":
+            self._capture_title = True
+            self._title_parts = []
+            return
+        if normalized in self.heading_tags:
+            self._flush_current()
+            self._current_heading_level = int(normalized[1])
+            self._heading_parts = []
+            return
+        if normalized in self.block_tags:
+            self._flush_current()
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        if normalized in self.ignored_tags:
+            self._ignored_depth = max(0, self._ignored_depth - 1)
+            return
+        if self._ignored_depth:
+            return
+        if normalized == "title":
+            title = self._normalize_text(" ".join(self._title_parts))
+            self.title = title or None
+            self._capture_title = False
+            self._title_parts = []
+            return
+        if normalized in self.heading_tags and self._current_heading_level is not None:
+            heading = self._normalize_text(" ".join(self._heading_parts))
+            if heading:
+                self.headings.append((self._current_heading_level, heading))
+                self.blocks.append(heading)
+            self._current_heading_level = None
+            self._heading_parts = []
+            self._current = []
+            return
+        if normalized in self.block_tags:
+            self._flush_current()
+
+    def handle_data(self, data: str) -> None:
+        if self._ignored_depth:
+            return
+        if self._capture_title:
+            self._title_parts.append(data)
+            return
+        if self._current_heading_level is not None:
+            self._heading_parts.append(data)
+            return
+        self._current.append(data)
+
+    def close(self) -> None:
+        super().close()
+        self._flush_current()
+
+    def _flush_current(self) -> None:
+        text = self._normalize_text(" ".join(self._current))
+        if text:
+            self.blocks.append(text)
+        self._current = []
+
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        return " ".join(text.split()).strip()
+
+
+def parse_html(*, file_bytes: bytes, metadata: dict[str, Any]) -> list[Document]:
+    html = file_bytes.decode("utf-8", errors="replace")
+    parser = _HTMLTextExtractor()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception as exc:
+        raise DocumentParsingError("Arquivo HTML invalido, corrompido ou ilegivel.") from exc
+
+    blocks = [block for block in parser.blocks if block]
+    if not blocks:
+        raise DocumentParsingError("Arquivo HTML nao contem texto extraivel.")
+
+    documents: list[Document] = []
+    current_section: str | None = None
+    heading_by_text = {text: level for level, text in parser.headings}
+    for block_index, block in enumerate(blocks, start=1):
+        block_metadata = {**metadata, "block": block_index}
+        if parser.title:
+            block_metadata["title"] = parser.title
+        if block in heading_by_text:
+            current_section = block
+            block_metadata["heading_level"] = heading_by_text[block]
+        if current_section:
+            block_metadata["section"] = current_section
+        documents.append(Document(page_content=block, metadata=block_metadata))
+
+    return documents
 
 
 def parse_pdf(*, file_bytes: bytes, metadata: dict[str, Any]) -> list[Document]:

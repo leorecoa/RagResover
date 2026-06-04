@@ -18,7 +18,7 @@ import { GlassCard } from "../ui/GlassCard";
 import { Input } from "../ui/Input";
 import { StatusBadge } from "../ui/StatusBadge";
 
-const supportedTypes = ["TXT", "Markdown", "JSON", "PDF", "DOCX"];
+const supportedTypes = ["TXT", "Markdown", "HTML", "JSON", "PDF", "DOCX"];
 
 interface UploadPanelProps extends ApiRequestOptions {
   onCompleted: (response: UploadJobResponse) => void;
@@ -169,7 +169,7 @@ export function UploadPanel({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-lg font-black text-white">Upload</h2>
-          <p className="mt-1 text-sm text-slate-400">TXT, Markdown, JSON, PDF e DOCX</p>
+          <p className="mt-1 text-sm text-slate-400">TXT, Markdown, HTML, JSON, PDF e DOCX</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {supportedTypes.map((type) => (
@@ -201,7 +201,7 @@ export function UploadPanel({
             ref={inputRef}
             type="file"
             className="sr-only"
-            accept=".txt,.md,.json,.pdf,.docx,text/plain,text/markdown,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".txt,.md,.html,.htm,.json,.pdf,.docx,text/plain,text/markdown,text/html,application/xhtml+xml,application/json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(event) => handleFile(event.target.files?.item(0))}
             aria-label="Selecionar arquivo"
           />

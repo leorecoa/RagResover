@@ -2,7 +2,7 @@
 
 This guide runs a complete RagResover demo without exposing `OPENAI_API_KEY`.
 It uses the local-first Ollama configuration from `.env.example`, generates
-sample PDF/DOCX files locally, indexes them, runs search/chat, shows retrieval
+sample PDF/DOCX/HTML files locally, indexes them, runs search/chat, shows retrieval
 diagnostics, and validates tenant isolation.
 
 ## Prerequisites
@@ -92,6 +92,7 @@ The script creates these local demo artifacts under `.demo/`:
 
 - `ragresover-demo.pdf`
 - `ragresover-demo.docx`
+- `ragresover-demo.html`
 - `tenant-other-secret.txt`
 
 Then it performs:
@@ -102,7 +103,10 @@ Then it performs:
 - `GET /uploads/{job_id}` until the PDF job is `completed`
 - `POST /upload` for DOCX with `X-Tenant-ID: tenant-demo`
 - `GET /uploads/{job_id}` until the DOCX job is `completed`
+- `POST /upload` for HTML with `X-Tenant-ID: tenant-demo`
+- `GET /uploads/{job_id}` until the HTML job is `completed`
 - `POST /search` with `metadata_filters.source = ragresover-demo.pdf`
+- `POST /search` with `metadata_filters.source = ragresover-demo.html`
 - `POST /chat` with source metadata enabled
 - tenant isolation check by uploading a private file to `tenant-other`
 - negative search from `tenant-demo` for the other tenant file
@@ -167,6 +171,14 @@ Upload DOCX:
 curl.exe -X POST http://localhost:8000/upload `
   -H "X-Tenant-ID: tenant-demo" `
   -F "file=@.demo/ragresover-demo.docx;type=application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+```
+
+Upload HTML:
+
+```powershell
+curl.exe -X POST http://localhost:8000/upload `
+  -H "X-Tenant-ID: tenant-demo" `
+  -F "file=@.demo/ragresover-demo.html;type=text/html"
 ```
 
 Search with diagnostics:
