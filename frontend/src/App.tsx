@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ApiError, getHealth, getReady } from "./lib/api";
+import { ApiError, getHealth, getMe, getReady } from "./lib/api";
 import type {
   ActivityItem,
+  AuthTokenResponse,
+  AuthUser,
   ChatResponse,
   HealthResponse,
   ReadyResponse,
@@ -16,6 +18,7 @@ import type { PageKey } from "./components/layout/Sidebar";
 import { Chat } from "./pages/Chat";
 import { Dashboard } from "./pages/Dashboard";
 import { Documents } from "./pages/Documents";
+import { LoginPage } from "./pages/Login";
 import { SearchPage } from "./pages/Search";
 import { Upload } from "./pages/Upload";
 
@@ -76,10 +79,38 @@ function readStoredTenant(): string {
   return window.localStorage.getItem("ragresover.tenant") ?? "tenant-demo";
 }
 
+function readStoredToken(): string {
+  return window.localStorage.getItem("ragresover.token") ?? "";
+}
+
+function readStoredUser(): AuthUser | null {
+  const raw = window.localStorage.getItem("ragresover.user");
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    window.localStorage.removeItem("ragresover.user");
+    return null;
+  }
+}
+
+function selectTenant(user: AuthUser, preferredTenantId: string): string {
+  const memberships = user.organizations;
+  if (memberships.some((membership) => membership.organization_id === preferredTenantId)) {
+    return preferredTenantId;
+  }
+  return memberships[0]?.organization_id ?? preferredTenantId;
+}
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageKey>("dashboard");
   const [tenantId, setTenantId] = useState(readStoredTenant);
-  const [apiToken, setApiToken] = useState("");
+  const [apiToken, setApiToken] = useState(readStoredToken);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(readStoredUser);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(() => Boolean(readStoredToken()));
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [ready, setReady] = useState<ReadyResponse | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -91,6 +122,75 @@ export default function App() {
   useEffect(() => {
     window.localStorage.setItem("ragresover.tenant", tenantId);
   }, [tenantId]);
+
+  useEffect(() => {
+    if (apiToken) {
+      window.localStorage.setItem("ragresover.token", apiToken);
+    } else {
+      window.localStorage.removeItem("ragresover.token");
+    }
+  }, [apiToken]);
+
+  useEffect(() => {
+    if (authUser) {
+      window.localStorage.setItem("ragresover.user", JSON.stringify(authUser));
+    } else {
+      window.localStorage.removeItem("ragresover.user");
+    }
+  }, [authUser]);
+
+  const clearSession = useCallback(() => {
+    setApiToken("");
+    setAuthUser(null);
+    setTenantId("tenant-demo");
+    setCurrentPage("dashboard");
+  }, []);
+
+  const applyAuthResponse = useCallback(
+    (response: AuthTokenResponse) => {
+      const nextTenant = selectTenant(response.user, tenantId);
+      setApiToken(response.access_token);
+      setAuthUser(response.user);
+      setTenantId(nextTenant);
+      setCurrentPage("dashboard");
+    },
+    [tenantId],
+  );
+
+  useEffect(() => {
+    if (!apiToken) {
+      setIsCheckingAuth(false);
+      return;
+    }
+
+    let active = true;
+    setIsCheckingAuth(true);
+
+    getMe({ tenantId, apiToken })
+      .then((user) => {
+        if (!active) {
+          return;
+        }
+        setAuthUser(user);
+        setTenantId((currentTenant) => selectTenant(user, currentTenant));
+      })
+      .catch((caught) => {
+        if (!active) {
+          return;
+        }
+        console.warn(caught instanceof Error ? caught.message : "Sessao expirada.");
+        clearSession();
+      })
+      .finally(() => {
+        if (active) {
+          setIsCheckingAuth(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const addActivity = useCallback((item: Omit<ActivityItem, "id">) => {
     setActivities((current) => [
@@ -261,6 +361,23 @@ export default function App() {
     tenantId,
   ]);
 
+  if (isCheckingAuth) {
+    return (
+      <main className="grid min-h-screen place-items-center px-4 text-center">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-cyan-100">
+            RagResover
+          </p>
+          <p className="mt-3 text-sm text-slate-400">Validando sessao...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!authUser || !apiToken) {
+    return <LoginPage onAuthenticated={applyAuthResponse} />;
+  }
+
   return (
     <AppShell
       currentPage={currentPage}
@@ -268,12 +385,13 @@ export default function App() {
       pageSubtitle={page.subtitle}
       tenantId={tenantId}
       apiToken={apiToken}
+      authUser={authUser}
       apiStatus={apiStatus}
       readyStatus={readyStatus}
       isRefreshing={isRefreshing}
       onNavigate={setCurrentPage}
       onTenantChange={setTenantId}
-      onApiTokenChange={setApiToken}
+      onLogout={clearSession}
       onRefresh={refreshStatus}
     >
       {content}

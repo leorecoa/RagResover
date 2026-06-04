@@ -1,8 +1,8 @@
-import { RefreshCw } from "lucide-react";
+import { LogOut, RefreshCw } from "lucide-react";
 
 import { API_BASE_URL } from "../../lib/api";
+import type { AuthUser } from "../../lib/types";
 import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
 import { StatusBadge } from "../ui/StatusBadge";
 
 interface TopbarProps {
@@ -10,11 +10,12 @@ interface TopbarProps {
   pageSubtitle: string;
   tenantId: string;
   apiToken: string;
+  authUser: AuthUser;
   apiStatus: string;
   readyStatus: string;
   isRefreshing: boolean;
   onTenantChange: (value: string) => void;
-  onApiTokenChange: (value: string) => void;
+  onLogout: () => void;
   onRefresh: () => void;
 }
 
@@ -36,13 +37,19 @@ export function Topbar({
   pageSubtitle,
   tenantId,
   apiToken,
+  authUser,
   apiStatus,
   readyStatus,
   isRefreshing,
   onTenantChange,
-  onApiTokenChange,
+  onLogout,
   onRefresh,
 }: TopbarProps) {
+  const currentMembership = authUser.organizations.find(
+    (membership) => membership.organization_id === tenantId,
+  );
+  const userLabel = authUser.full_name?.trim() || authUser.email;
+
   return (
     <header className="sticky top-0 z-20 border-b border-white/10 bg-slate-950/55 px-4 py-4 backdrop-blur-2xl lg:px-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -55,25 +62,30 @@ export function Topbar({
           <p className="mt-1 text-sm text-slate-400">{pageSubtitle}</p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[minmax(160px,220px)_minmax(160px,220px)_auto] sm:items-end">
+        <div className="grid gap-3 sm:grid-cols-[minmax(180px,260px)_minmax(160px,240px)_auto_auto] sm:items-end">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+              Sessao
+            </p>
+            <p className="mt-1 truncate text-sm font-bold text-slate-100">{userLabel}</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {currentMembership?.role ?? "member"} - JWT ativo
+            </p>
+          </div>
           <label className="field-label">
-            Tenant
-            <Input
+            Organizacao
+            <select
+              className="input-surface"
               value={tenantId}
               onChange={(event) => onTenantChange(event.target.value)}
-              placeholder="tenant-demo"
-              aria-label="Tenant ID"
-            />
-          </label>
-          <label className="field-label">
-            API token
-            <Input
-              type="password"
-              value={apiToken}
-              onChange={(event) => onApiTokenChange(event.target.value)}
-              placeholder="opcional"
-              aria-label="API token"
-            />
+              aria-label="Organizacao atual"
+            >
+              {authUser.organizations.map((membership) => (
+                <option key={membership.organization_id} value={membership.organization_id}>
+                  {membership.organization_id} - {membership.role}
+                </option>
+              ))}
+            </select>
           </label>
           <Button
             variant="secondary"
@@ -83,9 +95,18 @@ export function Topbar({
           >
             Atualizar
           </Button>
+          <Button
+            variant="ghost"
+            onClick={onLogout}
+            icon={<LogOut className="h-4 w-4" />}
+          >
+            Sair
+          </Button>
         </div>
       </div>
-      <p className="mt-3 truncate text-xs text-slate-600">{API_BASE_URL}</p>
+      <p className="mt-3 truncate text-xs text-slate-600">
+        {API_BASE_URL} - token {apiToken ? "configurado" : "ausente"}
+      </p>
     </header>
   );
 }

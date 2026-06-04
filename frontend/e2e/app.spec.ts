@@ -31,7 +31,64 @@ async function mockBaseApi(page: Page) {
 function expectTenantHeaders(request: Request) {
   const headers = request.headers();
   expect(headers["x-tenant-id"]).toBe("tenant-alpha");
-  expect(headers.authorization).toBe("Bearer demo-token");
+  expect(headers.authorization).toBe("Bearer jwt-token");
+}
+
+function authUser() {
+  return {
+    user_id: "11111111-1111-1111-1111-111111111111",
+    email: "owner@example.com",
+    full_name: "Owner",
+    organizations: [
+      {
+        organization_id: "tenant-alpha",
+        role: "owner",
+      },
+      {
+        organization_id: "tenant-beta",
+        role: "member",
+      },
+    ],
+  };
+}
+
+function authTokenResponse() {
+  return {
+    access_token: "jwt-token",
+    token_type: "bearer",
+    expires_in: 3600,
+    user: authUser(),
+  };
+}
+
+async function mockAuthApi(page: Page) {
+  await page.route("**/auth/login", async (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({
+      email: "owner@example.com",
+      password: "super-secret",
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(authTokenResponse()),
+    });
+  });
+
+  await page.route("**/auth/me", async (route) => {
+    expectTenantHeaders(route.request());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(authUser()),
+    });
+  });
+}
+
+async function signIn(page: Page) {
+  await page.goto("/");
+  await page.getByLabel("Email").fill("owner@example.com");
+  await page.getByLabel("Senha").fill("super-secret");
+  await page.getByRole("button", { name: "Entrar" }).click();
 }
 
 function uploadJob(overrides: Record<string, unknown> = {}) {
@@ -58,16 +115,18 @@ function uploadJob(overrides: Record<string, unknown> = {}) {
 
 test.beforeEach(async ({ page }) => {
   await mockBaseApi(page);
+  await mockAuthApi(page);
 });
 
 test("renders dashboard status and global tenant controls", async ({ page }) => {
-  await page.goto("/");
+  await signIn(page);
 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByText("healthy").first()).toBeVisible();
   await expect(page.getByText("ready").first()).toBeVisible();
   await expect(page.getByText("database available")).toBeVisible();
-  await expect(page.getByLabel("Tenant ID")).toHaveValue("tenant-demo");
+  await expect(page.getByLabel("Organizacao atual")).toHaveValue("tenant-alpha");
+  await expect(page.getByText("owner - JWT ativo")).toBeVisible();
 });
 
 test("uploads a document with tenant and token headers", async ({ page }) => {
@@ -113,9 +172,7 @@ test("uploads a document with tenant and token headers", async ({ page }) => {
     });
   });
 
-  await page.goto("/");
-  await page.getByLabel("Tenant ID").fill("tenant-alpha");
-  await page.getByLabel("API token").fill("demo-token");
+  await signIn(page);
   await page.getByRole("button", { name: /Upload Ingestao/ }).click();
 
   await page.getByLabel("Selecionar arquivo").setInputFiles({
@@ -209,9 +266,7 @@ test("manages upload job history with filters, retry and cancel", async ({ page 
     });
   });
 
-  await page.goto("/");
-  await page.getByLabel("Tenant ID").fill("tenant-alpha");
-  await page.getByLabel("API token").fill("demo-token");
+  await signIn(page);
   await page.getByRole("button", { name: /Upload Ingestao/ }).click();
 
   await expect(
@@ -339,9 +394,7 @@ test("manages documents with details, chunks, filters and delete", async ({ page
     await route.fallback();
   });
 
-  await page.goto("/");
-  await page.getByLabel("Tenant ID").fill("tenant-alpha");
-  await page.getByLabel("API token").fill("demo-token");
+  await signIn(page);
   await page.getByRole("button", { name: /Documents Library/ }).click();
 
   await expect(page.getByRole("heading", { name: "Documents" }).first()).toBeVisible();
@@ -408,9 +461,7 @@ test("runs semantic search with retrieval controls and diagnostics", async ({ pa
     });
   });
 
-  await page.goto("/");
-  await page.getByLabel("Tenant ID").fill("tenant-alpha");
-  await page.getByLabel("API token").fill("demo-token");
+  await signIn(page);
   await page.getByRole("button", { name: /Search Retrieval/ }).click();
 
   await page.getByLabel("Consulta de busca semantica").fill("retention policy");
@@ -476,9 +527,7 @@ test("asks chat and renders grounded answer with source metadata", async ({ page
     });
   });
 
-  await page.goto("/");
-  await page.getByLabel("Tenant ID").fill("tenant-alpha");
-  await page.getByLabel("API token").fill("demo-token");
+  await signIn(page);
   await page.getByRole("button", { name: /Chat RAG/ }).click();
 
   await page.getByLabel("Quantidade de fontes").fill("4");

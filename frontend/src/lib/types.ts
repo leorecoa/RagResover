@@ -159,6 +159,38 @@ export interface ChatResponse {
   diagnostics?: RetrievalDiagnostics | null;
 }
 
+export interface OrganizationMembership {
+  organization_id: string;
+  role: string;
+}
+
+export interface AuthUser {
+  user_id: string;
+  email: string;
+  full_name?: string | null;
+  organizations: OrganizationMembership[];
+}
+
+export interface AuthTokenResponse {
+  access_token: string;
+  token_type: "bearer";
+  expires_in: number;
+  user: AuthUser;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+  organization_id?: string | null;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  full_name?: string | null;
+  organization_name: string;
+}
+
 export interface ApiRequestOptions {
   tenantId?: string;
   apiToken?: string;

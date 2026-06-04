@@ -7,7 +7,11 @@ import type {
   DocumentDetailResponse,
   DocumentListResponse,
   HealthResponse,
+  AuthTokenResponse,
+  AuthUser,
+  LoginRequest,
   ReadyResponse,
+  RegisterRequest,
   SearchRequest,
   SearchResponse,
   UploadJobFilters,
@@ -91,6 +95,30 @@ export function getHealth(): Promise<HealthResponse> {
 
 export function getReady(): Promise<ReadyResponse> {
   return requestJson<ReadyResponse>("/ready");
+}
+
+export function login(payload: LoginRequest): Promise<AuthTokenResponse> {
+  return requestJson<AuthTokenResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+export function register(payload: RegisterRequest): Promise<AuthTokenResponse> {
+  return requestJson<AuthTokenResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+}
+
+export function getMe(options?: ApiRequestOptions): Promise<AuthUser> {
+  return requestJson<AuthUser>("/auth/me", undefined, options);
 }
 
 export function uploadDocument(

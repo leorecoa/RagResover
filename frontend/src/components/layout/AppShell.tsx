@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import type { AuthUser } from "../../lib/types";
 import { cn } from "../../lib/utils";
 import { Sidebar, type PageKey } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -11,12 +12,13 @@ interface AppShellProps {
   pageSubtitle: string;
   tenantId: string;
   apiToken: string;
+  authUser: AuthUser;
   apiStatus: string;
   readyStatus: string;
   isRefreshing: boolean;
   onNavigate: (page: PageKey) => void;
   onTenantChange: (value: string) => void;
-  onApiTokenChange: (value: string) => void;
+  onLogout: () => void;
   onRefresh: () => void;
 }
 
@@ -27,12 +29,13 @@ export function AppShell({
   pageSubtitle,
   tenantId,
   apiToken,
+  authUser,
   apiStatus,
   readyStatus,
   isRefreshing,
   onNavigate,
   onTenantChange,
-  onApiTokenChange,
+  onLogout,
   onRefresh,
 }: AppShellProps) {
   const mobilePages: Array<{ key: PageKey; label: string }> = [
@@ -52,11 +55,12 @@ export function AppShell({
           pageSubtitle={pageSubtitle}
           tenantId={tenantId}
           apiToken={apiToken}
+          authUser={authUser}
           apiStatus={apiStatus}
           readyStatus={readyStatus}
           isRefreshing={isRefreshing}
           onTenantChange={onTenantChange}
-          onApiTokenChange={onApiTokenChange}
+          onLogout={onLogout}
           onRefresh={onRefresh}
         />
 
