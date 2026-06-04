@@ -11,6 +11,8 @@ import type {
   AuthUser,
   LoginRequest,
   Organization,
+  OrganizationApiKeyCreated,
+  OrganizationApiKeysResponse,
   OrganizationInvitation,
   OrganizationInvitationsResponse,
   OrganizationMembersResponse,
@@ -197,6 +199,44 @@ export function listOrganizationInvitations(
   return requestJson<OrganizationInvitationsResponse>(
     "/organizations/current/invitations",
     undefined,
+    options,
+  );
+}
+
+export function listOrganizationApiKeys(
+  options?: ApiRequestOptions,
+): Promise<OrganizationApiKeysResponse> {
+  return requestJson<OrganizationApiKeysResponse>(
+    "/organizations/current/api-keys",
+    undefined,
+    options,
+  );
+}
+
+export function createOrganizationApiKey(
+  payload: { name: string; role: string },
+  options?: ApiRequestOptions,
+): Promise<OrganizationApiKeyCreated> {
+  return requestJson<OrganizationApiKeyCreated>(
+    "/organizations/current/api-keys",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+    options,
+  );
+}
+
+export function revokeOrganizationApiKey(
+  apiKeyId: string,
+  options?: ApiRequestOptions,
+): Promise<OrganizationApiKeysResponse> {
+  return requestJson<OrganizationApiKeysResponse>(
+    `/organizations/current/api-keys/${apiKeyId}`,
+    { method: "DELETE" },
     options,
   );
 }

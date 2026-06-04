@@ -97,6 +97,17 @@ async function mockOrganizationApi(page: Page) {
     created_at: "2026-06-04T12:00:00",
   };
   let invitations = [invitation];
+  let apiKeys = [
+    {
+      id: "api-key-1",
+      name: "Worker",
+      key_prefix: "wrk123",
+      role: "member",
+      created_by_user_id: "11111111-1111-1111-1111-111111111111",
+      created_at: "2026-06-04T12:00:00",
+      revoked_at: null,
+    },
+  ];
 
   await page.route("**/organizations/current", async (route) => {
     expectTenantHeaders(route.request());
@@ -187,6 +198,51 @@ async function mockOrganizationApi(page: Page) {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ invitations }),
+    });
+  });
+
+  await page.route("**/organizations/current/api-keys", async (route) => {
+    expectTenantHeaders(route.request());
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { name: string; role: string };
+      const created = {
+        id: "api-key-2",
+        name: body.name,
+        key_prefix: "new123",
+        role: body.role,
+        created_by_user_id: "11111111-1111-1111-1111-111111111111",
+        created_at: "2026-06-04T12:10:00",
+        revoked_at: null,
+        api_key: "rrk_new123_secret",
+      };
+      apiKeys = [created, ...apiKeys];
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(created),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ api_keys: apiKeys }),
+    });
+  });
+
+  await page.route("**/organizations/current/api-keys/api-key-2", async (route) => {
+    expectTenantHeaders(route.request());
+    apiKeys = apiKeys.map((apiKey) =>
+      apiKey.id === "api-key-2"
+        ? { ...apiKey, revoked_at: "2026-06-04T12:15:00" }
+        : apiKey,
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        api_keys: [apiKeys.find((apiKey) => apiKey.id === "api-key-2")],
+      }),
     });
   });
 }
@@ -678,4 +734,14 @@ test("manages organization settings, invites and member roles", async ({ page })
 
   await page.getByLabel("Role de member@example.com").selectOption("viewer");
   await expect(page.getByText("Role atualizado para member@example.com.")).toBeVisible();
+
+  await page.getByLabel("Nome da API key").fill("Search Worker");
+  await page.getByLabel("Role da API key").selectOption("viewer");
+  await page.getByRole("button", { name: "Criar key" }).click();
+  await expect(page.getByText("API key criada: Search Worker.")).toBeVisible();
+  await expect(page.getByText("rrk_new123_secret")).toBeVisible();
+  await expect(page.getByText("prefix new123")).toBeVisible();
+
+  await page.getByRole("button", { name: "Revogar" }).first().click();
+  await expect(page.getByText("API key revogada: Search Worker.")).toBeVisible();
 });

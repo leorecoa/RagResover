@@ -2,15 +2,19 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, MailPlus, RefreshCw, Save } from "lucide-react";
 
 import {
+  createOrganizationApiKey,
   getCurrentOrganization,
   inviteOrganizationMember,
+  listOrganizationApiKeys,
   listOrganizationInvitations,
   listOrganizationMembers,
+  revokeOrganizationApiKey,
   updateCurrentOrganization,
   updateOrganizationMemberRole,
 } from "../lib/api";
 import type {
   Organization,
+  OrganizationApiKey,
   OrganizationInvitation,
   OrganizationMember,
 } from "../lib/types";
@@ -32,9 +36,13 @@ export function OrganizationPage({ tenantId, apiToken }: OrganizationPageProps) 
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [invitations, setInvitations] = useState<OrganizationInvitation[]>([]);
+  const [apiKeys, setApiKeys] = useState<OrganizationApiKey[]>([]);
   const [name, setName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
+  const [apiKeyName, setApiKeyName] = useState("");
+  const [apiKeyRole, setApiKeyRole] = useState("member");
+  const [newApiKey, setNewApiKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,15 +58,17 @@ export function OrganizationPage({ tenantId, apiToken }: OrganizationPageProps) 
     setIsLoading(true);
     setError(null);
     try {
-      const [nextOrganization, nextMembers, nextInvitations] = await Promise.all([
+      const [nextOrganization, nextMembers, nextInvitations, nextApiKeys] = await Promise.all([
         getCurrentOrganization(requestOptions),
         listOrganizationMembers(requestOptions),
         listOrganizationInvitations(requestOptions).catch(() => ({ invitations: [] })),
+        listOrganizationApiKeys(requestOptions).catch(() => ({ api_keys: [] })),
       ]);
       setOrganization(nextOrganization);
       setName(nextOrganization.name);
       setMembers(nextMembers.members);
       setInvitations(nextInvitations.invitations);
+      setApiKeys(nextApiKeys.api_keys);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Organizacao indisponivel.");
     } finally {
@@ -125,6 +135,47 @@ export function OrganizationPage({ tenantId, apiToken }: OrganizationPageProps) 
       setNotice(`Role atualizado para ${updated.email}.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Nao foi possivel alterar role.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleCreateApiKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    setNewApiKey(null);
+    try {
+      const created = await createOrganizationApiKey(
+        { name: apiKeyName, role: apiKeyRole },
+        requestOptions,
+      );
+      setApiKeys((current) => [created, ...current]);
+      setApiKeyName("");
+      setApiKeyRole("member");
+      setNewApiKey(created.api_key);
+      setNotice(`API key criada: ${created.name}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Nao foi possivel criar API key.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleRevokeApiKey(apiKey: OrganizationApiKey) {
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await revokeOrganizationApiKey(apiKey.id, requestOptions);
+      const revoked = response.api_keys[0];
+      setApiKeys((current) =>
+        current.map((item) => (item.id === revoked.id ? revoked : item)),
+      );
+      setNotice(`API key revogada: ${revoked.name}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Nao foi possivel revogar API key.");
     } finally {
       setIsSaving(false);
     }
@@ -288,6 +339,92 @@ export function OrganizationPage({ tenantId, apiToken }: OrganizationPageProps) 
               ))}
             </tbody>
           </table>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="p-5 lg:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-lg font-black text-white">API keys</h2>
+            <p className="mt-1 text-sm text-slate-500">Credenciais tenant-scoped para integracoes</p>
+          </div>
+          <form className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_140px_auto]" onSubmit={handleCreateApiKey}>
+            <label className="field-label">
+              Nome da API key
+              <Input
+                value={apiKeyName}
+                onChange={(event) => setApiKeyName(event.target.value)}
+                disabled={!canManage || isSaving}
+                required
+                aria-label="Nome da API key"
+              />
+            </label>
+            <label className="field-label">
+              Role
+              <select
+                className="input-surface"
+                value={apiKeyRole}
+                onChange={(event) => setApiKeyRole(event.target.value)}
+                disabled={!canManage || isSaving}
+                aria-label="Role da API key"
+              >
+                {roleOptions
+                  .filter((role) => canGrantAdmin || role !== "admin")
+                  .map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <Button type="submit" disabled={!canManage || isSaving}>
+              Criar key
+            </Button>
+          </form>
+        </div>
+
+        {newApiKey ? (
+          <div className="mt-5 rounded-md border border-cyan-300/20 bg-cyan-400/10 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-100">
+              Copie agora
+            </p>
+            <p className="mt-2 break-all font-mono text-sm text-white">{newApiKey}</p>
+          </div>
+        ) : null}
+
+        <div className="mt-5 grid gap-3">
+          {apiKeys.length ? (
+            apiKeys.map((apiKey) => (
+              <div
+                key={apiKey.id}
+                className="flex flex-col gap-3 rounded-md border border-white/10 bg-white/[0.04] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-white">{apiKey.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">prefix {apiKey.key_prefix}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge label={apiKey.role} />
+                  <StatusBadge
+                    label={apiKey.revoked_at ? "revoked" : "active"}
+                    tone={apiKey.revoked_at ? "danger" : "success"}
+                  />
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => handleRevokeApiKey(apiKey)}
+                    disabled={!canManage || isSaving || Boolean(apiKey.revoked_at)}
+                  >
+                    Revogar
+                  </Button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="rounded-md border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-500">
+              Nenhuma API key criada.
+            </p>
+          )}
         </div>
       </GlassCard>
 

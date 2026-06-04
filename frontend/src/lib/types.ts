@@ -223,6 +223,24 @@ export interface OrganizationInvitationsResponse {
   invitations: OrganizationInvitation[];
 }
 
+export interface OrganizationApiKey {
+  id: string;
+  name: string;
+  key_prefix: string;
+  role: string;
+  created_by_user_id: string;
+  created_at: string;
+  revoked_at?: string | null;
+}
+
+export interface OrganizationApiKeyCreated extends OrganizationApiKey {
+  api_key: string;
+}
+
+export interface OrganizationApiKeysResponse {
+  api_keys: OrganizationApiKey[];
+}
+
 export interface ApiRequestOptions {
   tenantId?: string;
   apiToken?: string;
