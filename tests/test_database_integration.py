@@ -53,6 +53,7 @@ def test_real_database_has_current_core_tables():
                     "users",
                     "organizations",
                     "organization_memberships",
+                    "organization_invitations",
                 ],
             )
             return {row["table_name"] for row in rows}
@@ -67,4 +68,5 @@ def test_real_database_has_current_core_tables():
         "users",
         "organizations",
         "organization_memberships",
+        "organization_invitations",
     }

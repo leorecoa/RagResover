@@ -1,0 +1,102 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.dependencies.auth import TenantContext, require_authenticated_context
+from app.api.schemas.organizations import (
+    InvitationResponse,
+    InvitationsResponse,
+    InviteMemberRequest,
+    OrganizationMembersResponse,
+    OrganizationResponse,
+    UpdateMemberRoleRequest,
+    UpdateOrganizationRequest,
+)
+from app.db.session import get_db_session
+from app.services.organizations import (
+    get_current_organization,
+    invite_member,
+    list_current_organization_invitations,
+    list_current_organization_members,
+    update_current_organization,
+    update_member_role,
+)
+
+
+router = APIRouter(prefix="/organizations", tags=["Organizations"])
+
+
+@router.get("/current", response_model=OrganizationResponse)
+async def current_organization(
+    context: TenantContext = Depends(require_authenticated_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    return await get_current_organization(session=session, context=context)
+
+
+@router.patch("/current", response_model=OrganizationResponse)
+async def update_organization(
+    request: UpdateOrganizationRequest,
+    context: TenantContext = Depends(require_authenticated_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    return await update_current_organization(
+        session=session,
+        context=context,
+        name=request.name,
+    )
+
+
+@router.get("/current/members", response_model=OrganizationMembersResponse)
+async def list_members(
+    context: TenantContext = Depends(require_authenticated_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    return {
+        "members": await list_current_organization_members(
+            session=session,
+            context=context,
+        )
+    }
+
+
+@router.patch("/current/members/{user_id}", response_model=OrganizationMembersResponse)
+async def change_member_role(
+    user_id: str,
+    request: UpdateMemberRoleRequest,
+    context: TenantContext = Depends(require_authenticated_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    member = await update_member_role(
+        session=session,
+        context=context,
+        user_id=user_id,
+        role=request.role,
+    )
+    return {"members": [member]}
+
+
+@router.get("/current/invitations", response_model=InvitationsResponse)
+async def list_invitations(
+    context: TenantContext = Depends(require_authenticated_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    return {
+        "invitations": await list_current_organization_invitations(
+            session=session,
+            context=context,
+        )
+    }
+
+
+@router.post("/current/invitations", response_model=InvitationResponse, status_code=201)
+async def create_invitation(
+    request: InviteMemberRequest,
+    context: TenantContext = Depends(require_authenticated_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    return await invite_member(
+        session=session,
+        context=context,
+        email=request.email,
+        role=request.role,
+    )
