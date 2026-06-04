@@ -3,8 +3,10 @@ from fastapi import HTTPException
 
 import app.api.dependencies.auth as auth_module
 from app.api.dependencies.auth import (
+    ensure_admin_context,
     extract_bearer_token,
     get_tenant_context,
+    parse_roles,
     validate_tenant_id,
 )
 
@@ -19,6 +21,10 @@ def test_validate_tenant_id_rejects_unsafe_values():
         validate_tenant_id("../tenant")
 
 
+def test_parse_roles_normalizes_comma_separated_roles():
+    assert parse_roles(" Admin, viewer,admin , ") == frozenset({"admin", "viewer"})
+
+
 def test_get_tenant_context_uses_explicit_tenant(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "ALLOW_ANONYMOUS_ACCESS", True)
     monkeypatch.setattr(auth_module.settings, "API_AUTH_TOKEN", _Secret(""))
@@ -27,6 +33,8 @@ def test_get_tenant_context_uses_explicit_tenant(monkeypatch):
         return await get_tenant_context(
             x_tenant_id="tenant-a",
             x_api_key=None,
+            x_user_id="user-1",
+            x_user_roles="Admin,Viewer",
             authorization=None,
         )
 
@@ -36,6 +44,8 @@ def test_get_tenant_context_uses_explicit_tenant(monkeypatch):
 
     assert context.tenant_id == "tenant-a"
     assert context.is_anonymous is False
+    assert context.user_id == "user-1"
+    assert context.roles == frozenset({"admin", "viewer"})
 
 
 def test_get_tenant_context_uses_default_anonymous_tenant(monkeypatch):
@@ -47,6 +57,8 @@ def test_get_tenant_context_uses_default_anonymous_tenant(monkeypatch):
         return await get_tenant_context(
             x_tenant_id=None,
             x_api_key=None,
+            x_user_id=None,
+            x_user_roles=None,
             authorization=None,
         )
 
@@ -66,6 +78,8 @@ def test_get_tenant_context_can_disable_anonymous_access(monkeypatch):
         return await get_tenant_context(
             x_tenant_id=None,
             x_api_key=None,
+            x_user_id=None,
+            x_user_roles=None,
             authorization=None,
         )
 
@@ -84,6 +98,8 @@ def test_get_tenant_context_requires_api_token_when_configured(monkeypatch):
         return await get_tenant_context(
             x_tenant_id="tenant-a",
             x_api_key=None,
+            x_user_id=None,
+            x_user_roles=None,
             authorization=None,
         )
 
@@ -102,6 +118,8 @@ def test_get_tenant_context_accepts_api_token_when_configured(monkeypatch):
         return await get_tenant_context(
             x_tenant_id="tenant-a",
             x_api_key=None,
+            x_user_id=None,
+            x_user_roles=None,
             authorization="Bearer expected",
         )
 
@@ -110,6 +128,33 @@ def test_get_tenant_context_accepts_api_token_when_configured(monkeypatch):
     context = anyio.run(call_dependency)
 
     assert context.tenant_id == "tenant-a"
+
+
+def test_ensure_admin_context_accepts_admin_role(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "ADMIN_ROLE_NAME", "admin")
+    context = auth_module.TenantContext(
+        tenant_id="tenant-a",
+        is_anonymous=False,
+        user_id="user-1",
+        roles=frozenset({"admin"}),
+    )
+
+    assert ensure_admin_context(context) is context
+
+
+def test_ensure_admin_context_rejects_missing_admin_role(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "ADMIN_ROLE_NAME", "admin")
+    context = auth_module.TenantContext(
+        tenant_id="tenant-a",
+        is_anonymous=False,
+        user_id="user-1",
+        roles=frozenset({"viewer"}),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        ensure_admin_context(context)
+
+    assert exc.value.status_code == 403
 
 
 class _Secret:
