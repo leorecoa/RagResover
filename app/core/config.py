@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     API_AUTH_TOKEN: SecretStr = SecretStr("")
     ADMIN_ROLE_NAME: str = "admin"
     METRICS_REQUIRE_ADMIN: bool = False
+    JWT_SECRET_KEY: SecretStr = SecretStr("dev-only-change-me")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    PASSWORD_HASH_ITERATIONS: int = 210_000
 
     STORAGE_ENDPOINT: str = "localhost:9000"
     STORAGE_ACCESS_KEY: str = "minioadmin"
@@ -134,8 +137,12 @@ class Settings(BaseSettings):
             raise ValueError("DEFAULT_TENANT_ID must not be empty")
         if not self.ADMIN_ROLE_NAME.strip():
             raise ValueError("ADMIN_ROLE_NAME must not be empty")
-        if self.METRICS_REQUIRE_ADMIN and not self.has_api_auth_token:
-            raise ValueError("API_AUTH_TOKEN must be configured when METRICS_REQUIRE_ADMIN=true")
+        if self.JWT_ACCESS_TOKEN_EXPIRE_MINUTES <= 0:
+            raise ValueError("JWT_ACCESS_TOKEN_EXPIRE_MINUTES must be greater than 0")
+        if self.PASSWORD_HASH_ITERATIONS < 100_000:
+            raise ValueError("PASSWORD_HASH_ITERATIONS must be at least 100000")
+        if self.is_production and self.JWT_SECRET_KEY.get_secret_value() == "dev-only-change-me":
+            raise ValueError("JWT_SECRET_KEY must be changed in production")
         if self.is_production and "*" in self.cors_origins:
             raise ValueError("CORS_ALLOW_ORIGINS cannot contain '*' in production")
         return self

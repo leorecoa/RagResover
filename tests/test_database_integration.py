@@ -50,6 +50,9 @@ def test_real_database_has_current_core_tables():
                     "document_chunks",
                     "ingestion_jobs",
                     "audit_events",
+                    "users",
+                    "organizations",
+                    "organization_memberships",
                 ],
             )
             return {row["table_name"] for row in rows}
@@ -61,4 +64,7 @@ def test_real_database_has_current_core_tables():
         "document_chunks",
         "ingestion_jobs",
         "audit_events",
+        "users",
+        "organizations",
+        "organization_memberships",
     }

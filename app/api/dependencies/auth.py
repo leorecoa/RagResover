@@ -1,9 +1,14 @@
 import re
 from dataclasses import dataclass
+from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.session import get_db_session
+from app.repositories.identity import IdentityRepository
+from app.services.security import TokenError, decode_access_token
 
 
 TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -14,7 +19,14 @@ class TenantContext:
     tenant_id: str
     is_anonymous: bool
     user_id: str | None = None
+    email: str | None = None
+    full_name: str | None = None
     roles: frozenset[str] = frozenset()
+    memberships: dict[str, str] = None
+
+    def __post_init__(self):
+        if self.memberships is None:
+            object.__setattr__(self, "memberships", {})
 
 
 def extract_bearer_token(authorization: str | None) -> str | None:
@@ -64,14 +76,26 @@ async def get_tenant_context(
     x_user_id: str | None = Header(default=None, alias="X-User-ID"),
     x_user_roles: str | None = Header(default=None, alias="X-User-Roles"),
     authorization: str | None = Header(default=None, alias="Authorization"),
+    session: AsyncSession | None = Depends(get_db_session),
 ) -> TenantContext:
     user_id, roles = build_user_context(
         x_user_id=x_user_id,
         x_user_roles=x_user_roles,
     )
+    bearer_token = extract_bearer_token(authorization)
+
+    if bearer_token and (
+        not settings.has_api_auth_token
+        or bearer_token != settings.API_AUTH_TOKEN.get_secret_value().strip()
+    ):
+        return await get_jwt_tenant_context(
+            token=bearer_token,
+            requested_tenant_id=x_tenant_id,
+            session=session if hasattr(session, "execute") else None,
+        )
 
     if settings.has_api_auth_token:
-        provided_token = extract_bearer_token(authorization) or (x_api_key or "").strip()
+        provided_token = bearer_token or (x_api_key or "").strip()
         expected_token = settings.API_AUTH_TOKEN.get_secret_value().strip()
         if not provided_token:
             raise HTTPException(
@@ -106,6 +130,68 @@ async def get_tenant_context(
     )
 
 
+async def get_jwt_tenant_context(
+    *,
+    token: str,
+    requested_tenant_id: str | None,
+    session: AsyncSession | None,
+) -> TenantContext:
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessao de autenticacao indisponivel.",
+        )
+
+    try:
+        payload = decode_access_token(token)
+        user_id = UUID(str(payload["sub"]))
+    except (TokenError, ValueError, KeyError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalido.",
+        ) from exc
+
+    repository = IdentityRepository(session)
+    user = await repository.get_user_by_id(user_id=user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario inativo ou nao encontrado.",
+        )
+
+    memberships = await repository.list_memberships(user_id=user.id)
+    if not memberships:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuario sem organizacao ativa.",
+        )
+
+    membership_map = {
+        str(membership.organization_id): membership.role
+        for membership in memberships
+    }
+    tenant_id = (
+        validate_tenant_id(requested_tenant_id)
+        if requested_tenant_id and requested_tenant_id.strip()
+        else next(iter(membership_map))
+    )
+    if tenant_id not in membership_map:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuario nao pertence ao tenant informado.",
+        )
+
+    return TenantContext(
+        tenant_id=tenant_id,
+        is_anonymous=False,
+        user_id=str(user.id),
+        email=user.email,
+        full_name=user.full_name,
+        roles=frozenset({membership_map[tenant_id]}),
+        memberships=membership_map,
+    )
+
+
 def ensure_admin_context(context: TenantContext) -> TenantContext:
     admin_role = settings.ADMIN_ROLE_NAME.strip().lower()
     if admin_role not in context.roles:
@@ -116,7 +202,22 @@ def ensure_admin_context(context: TenantContext) -> TenantContext:
     return context
 
 
+def ensure_authenticated_context(context: TenantContext) -> TenantContext:
+    if not context.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Autenticacao obrigatoria.",
+        )
+    return context
+
+
 async def require_admin_context(
     context: TenantContext = Depends(get_tenant_context),
 ) -> TenantContext:
     return ensure_admin_context(context)
+
+
+async def require_authenticated_context(
+    context: TenantContext = Depends(get_tenant_context),
+) -> TenantContext:
+    return ensure_authenticated_context(context)

@@ -41,6 +41,6 @@ def test_cohere_reranker_accepts_api_key_and_model():
     assert settings.COHERE_RERANK_MODEL == "rerank-v4.0-pro"
 
 
-def test_metrics_admin_protection_requires_api_token():
-    with pytest.raises(ValidationError, match="API_AUTH_TOKEN"):
-        Settings(METRICS_REQUIRE_ADMIN=True, API_AUTH_TOKEN="")
+def test_production_requires_non_default_jwt_secret():
+    with pytest.raises(ValidationError, match="JWT_SECRET_KEY"):
+        Settings(APP_ENV="production", JWT_SECRET_KEY="dev-only-change-me")

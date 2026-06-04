@@ -1,14 +1,17 @@
 import pytest
 from fastapi import HTTPException
+from uuid import UUID
 
 import app.api.dependencies.auth as auth_module
 from app.api.dependencies.auth import (
     ensure_admin_context,
+    ensure_authenticated_context,
     extract_bearer_token,
     get_tenant_context,
     parse_roles,
     validate_tenant_id,
 )
+from app.repositories.identity import MembershipRecord, UserRecord
 
 
 def test_extract_bearer_token_accepts_authorization_header():
@@ -130,6 +133,112 @@ def test_get_tenant_context_accepts_api_token_when_configured(monkeypatch):
     assert context.tenant_id == "tenant-a"
 
 
+def test_get_tenant_context_accepts_jwt_membership(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "API_AUTH_TOKEN", _Secret(""))
+
+    class FakeIdentityRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_user_by_id(self, *, user_id):
+            return UserRecord(
+                id=user_id,
+                email="owner@example.com",
+                full_name="Owner",
+                password_hash="hash",
+                is_active=True,
+                created_at=None,
+            )
+
+        async def list_memberships(self, *, user_id):
+            return [
+                MembershipRecord(
+                    user_id=user_id,
+                    organization_id=UUID("11111111-1111-1111-1111-111111111111"),
+                    role="owner",
+                    created_at=None,
+                )
+            ]
+
+    monkeypatch.setattr(auth_module, "IdentityRepository", FakeIdentityRepository)
+    monkeypatch.setattr(
+        auth_module,
+        "decode_access_token",
+        lambda token: {"sub": "99999999-9999-9999-9999-999999999999"},
+    )
+
+    async def call_dependency():
+        return await get_tenant_context(
+            x_tenant_id="11111111-1111-1111-1111-111111111111",
+            x_api_key=None,
+            x_user_id=None,
+            x_user_roles=None,
+            authorization="Bearer jwt-token",
+            session=_FakeSession(),
+        )
+
+    import anyio
+
+    context = anyio.run(call_dependency)
+
+    assert context.tenant_id == "11111111-1111-1111-1111-111111111111"
+    assert context.user_id == "99999999-9999-9999-9999-999999999999"
+    assert context.email == "owner@example.com"
+    assert context.roles == frozenset({"owner"})
+
+
+def test_get_tenant_context_rejects_cross_organization_jwt(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "API_AUTH_TOKEN", _Secret(""))
+
+    class FakeIdentityRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_user_by_id(self, *, user_id):
+            return UserRecord(
+                id=user_id,
+                email="owner@example.com",
+                full_name="Owner",
+                password_hash="hash",
+                is_active=True,
+                created_at=None,
+            )
+
+        async def list_memberships(self, *, user_id):
+            return [
+                MembershipRecord(
+                    user_id=user_id,
+                    organization_id=UUID("11111111-1111-1111-1111-111111111111"),
+                    role="owner",
+                    created_at=None,
+                )
+            ]
+
+    monkeypatch.setattr(auth_module, "IdentityRepository", FakeIdentityRepository)
+    monkeypatch.setattr(
+        auth_module,
+        "decode_access_token",
+        lambda token: {"sub": "99999999-9999-9999-9999-999999999999"},
+    )
+
+    async def call_dependency():
+        return await get_tenant_context(
+            x_tenant_id="22222222-2222-2222-2222-222222222222",
+            x_api_key=None,
+            x_user_id=None,
+            x_user_roles=None,
+            authorization="Bearer jwt-token",
+            session=_FakeSession(),
+        )
+
+    import anyio
+
+    with pytest.raises(HTTPException) as exc:
+        anyio.run(call_dependency)
+
+    assert exc.value.status_code == 403
+
+
 def test_ensure_admin_context_accepts_admin_role(monkeypatch):
     monkeypatch.setattr(auth_module.settings, "ADMIN_ROLE_NAME", "admin")
     context = auth_module.TenantContext(
@@ -157,9 +266,26 @@ def test_ensure_admin_context_rejects_missing_admin_role(monkeypatch):
     assert exc.value.status_code == 403
 
 
+def test_ensure_authenticated_context_rejects_anonymous_context():
+    context = auth_module.TenantContext(
+        tenant_id="anonymous",
+        is_anonymous=True,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        ensure_authenticated_context(context)
+
+    assert exc.value.status_code == 401
+
+
 class _Secret:
     def __init__(self, value: str):
         self.value = value
 
     def get_secret_value(self):
         return self.value
+
+
+class _FakeSession:
+    async def execute(self, *args, **kwargs):
+        return None
