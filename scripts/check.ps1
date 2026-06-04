@@ -19,6 +19,16 @@ if ($alembicExitCode -ne 0) {
     throw "Alembic offline migration SQL check failed with exit code $alembicExitCode."
 }
 
+Write-Host "Checking Alembic offline downgrade SQL..."
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+venv\Scripts\alembic.exe downgrade head:base --sql > $null 2> $null
+$alembicDowngradeExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+if ($alembicDowngradeExitCode -ne 0) {
+    throw "Alembic offline downgrade SQL check failed with exit code $alembicDowngradeExitCode."
+}
+
 Write-Host "Checking Python dependencies..."
 venv\Scripts\pip.exe check
 
