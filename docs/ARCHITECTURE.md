@@ -157,6 +157,7 @@ Primary tables are managed through Alembic migrations:
 - `organizations`: customer/account containers.
 - `organization_memberships`: user-to-organization roles used for tenant access checks.
 - `organization_invitations`: pending, accepted, or revoked invitations for organization membership.
+- `organization_api_keys`: hashed tenant-scoped API keys with prefix lookup, role, creator, and revocation timestamp.
 - `conversations`: reserved for future chat history.
 - `messages`: reserved for future chat messages.
 
@@ -191,7 +192,9 @@ RagResover supports real JWT auth for B2B tenants plus a compatibility MVP token
 - `Authorization: Bearer <jwt>`: resolves the user and validates `X-Tenant-ID` against memberships.
 - `X-Tenant-ID`: tenant or organization identifier.
 - `/organizations/current`: organization settings, member listing, pending invitations,
-  and MVP role management for `owner`/`admin`.
+  API keys, and MVP role management for `owner`/`admin`.
+- `X-API-Key`: resolves a tenant-scoped API key, validates the hash, and applies
+  the stored role to RBAC checks.
 - `ALLOW_ANONYMOUS_ACCESS=true`: missing tenant header falls back to `DEFAULT_TENANT_ID`.
 - `ALLOW_ANONYMOUS_ACCESS=false`: missing tenant header returns `401`.
 - `APP_ENV=production` refuses to start unless anonymous access is disabled.
@@ -231,5 +234,5 @@ RagResover supports:
 - Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.
 - Auth has backend users, organizations, memberships, JWTs, frontend login,
   current organization selection, organization settings, invitation records,
-  and MVP role management, but tenant API keys, invite acceptance/email delivery,
+  tenant API keys, and MVP role management, but invite acceptance/email delivery
   and full role-by-action permissions are not implemented yet.

@@ -60,5 +60,5 @@ The local `scripts/check.ps1` validates both offline upgrade SQL and offline
 downgrade SQL generation.
 
 Audit events and identity tables (`users`, `organizations`,
-`organization_memberships`, and `organization_invitations`) are created by
-Alembic migrations, not by bootstrap SQL.
+`organization_memberships`, `organization_invitations`, and
+`organization_api_keys`) are created by Alembic migrations, not by bootstrap SQL.

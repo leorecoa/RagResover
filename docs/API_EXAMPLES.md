@@ -122,6 +122,39 @@ Invoke-RestMethod http://localhost:8000/organizations/current/members -Headers $
 Invoke-RestMethod http://localhost:8000/organizations/current/invitations -Headers $headers
 ```
 
+Create a tenant-scoped API key. The raw `api_key` is returned only once:
+
+```powershell
+$apiKey = @{
+  name = "Search Worker"
+  role = "viewer"
+} | ConvertTo-Json |
+  Invoke-RestMethod http://localhost:8000/organizations/current/api-keys `
+    -Method Post `
+    -Headers $headers `
+    -ContentType "application/json"
+```
+
+Use it with `X-API-Key`:
+
+```powershell
+$apiKeyHeaders = @{
+  "X-API-Key" = $apiKey.api_key
+  "X-Tenant-ID" = $headers["X-Tenant-ID"]
+}
+
+Invoke-RestMethod http://localhost:8000/documents -Headers $apiKeyHeaders
+```
+
+List and revoke API keys:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/organizations/current/api-keys -Headers $headers
+Invoke-RestMethod "http://localhost:8000/organizations/current/api-keys/$($apiKey.id)" `
+  -Method Delete `
+  -Headers $headers
+```
+
 ## Upload
 
 ```powershell

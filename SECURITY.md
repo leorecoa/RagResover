@@ -25,6 +25,7 @@ Before production:
 - disable anonymous access
 - configure a strong `JWT_SECRET_KEY`
 - use JWT login with organization memberships for normal users
+- use tenant-scoped API keys for integrations and revoke unused keys
 - require admin role membership or admin role headers for operational endpoints such as `/metrics`
 - restrict CORS
 - configure HTTPS

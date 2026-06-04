@@ -143,6 +143,9 @@ Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
 | PATCH | `/organizations/current/members/{user_id}` | Update one member role |
 | GET | `/organizations/current/invitations` | List organization invitations |
 | POST | `/organizations/current/invitations` | Create or refresh a pending invitation |
+| GET | `/organizations/current/api-keys` | List redacted tenant-scoped API keys |
+| POST | `/organizations/current/api-keys` | Create a tenant-scoped API key |
+| DELETE | `/organizations/current/api-keys/{api_key_id}` | Revoke a tenant-scoped API key |
 | POST | `/upload` | Create an async upload processing job |
 | GET | `/uploads` | List upload jobs for the current tenant |
 | GET | `/uploads/{job_id}` | Inspect one upload job status |
@@ -163,7 +166,9 @@ Set `RERANKER_PROVIDER=cohere`, `COHERE_API_KEY`, and optionally `COHERE_RERANK_
 
 Upload now stores the raw file in MinIO, returns `202 Accepted` with a `job_id`, and enqueues the job. Poll `GET /uploads/{job_id}` until the status is `completed`, `failed`, or `canceled`; completed jobs include the indexed `document_id`, while failed jobs include attempts and error details. `GET /uploads` supports filters such as `status`, `filename`, `content_type`, date range, `document_id`, `limit`, and `offset`.
 
-Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` only while `ALLOW_ANONYMOUS_ACCESS=true`; production refuses to start with anonymous access enabled. Real auth is available through `/auth/register` and `/auth/login`, which return JWT bearer tokens backed by users, organizations, and memberships. The React frontend stores the JWT locally, validates saved sessions through `/auth/me`, and sends the selected organization as `X-Tenant-ID`. The legacy shared `API_AUTH_TOKEN` and `X-API-Key` path remains available for controlled deployments and compatibility.
+Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` only while `ALLOW_ANONYMOUS_ACCESS=true`; production refuses to start with anonymous access enabled. Real auth is available through `/auth/register` and `/auth/login`, which return JWT bearer tokens backed by users, organizations, and memberships. Tenant-scoped API keys can be created under `/organizations/current/api-keys` and used with `X-API-Key`; keys are stored hashed and the raw key is shown only once. The React frontend stores the JWT locally, validates saved sessions through `/auth/me`, and sends the selected organization as `X-Tenant-ID`. The legacy shared `API_AUTH_TOKEN` path remains available for controlled deployments and compatibility.
+
+RBAC is applied to sensitive actions: `viewer` can read, `member` can upload/retry/cancel jobs, and `owner`/`admin` can manage organization settings, API keys, invites, roles, and document deletion.
 
 Mutable upload/document actions write best-effort audit events with tenant, optional user, roles, action, resource, and metadata.
 
@@ -178,6 +183,7 @@ The React/Vite frontend in `frontend/` includes:
 - login and registration backed by the JWT auth API
 - current organization selection from authenticated memberships
 - organization settings with member roles and invitations
+- tenant-scoped API key creation and revocation
 - API readiness panel
 - async document upload with processing status
 - upload job history with filters, retry, and cancel actions
