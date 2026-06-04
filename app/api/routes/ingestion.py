@@ -20,6 +20,7 @@ from app.services.storage import storage_service
 
 logger = logging.getLogger("rag_resover")
 router = APIRouter(tags=["Ingestion"])
+UPLOAD_READ_CHUNK_BYTES = 1024 * 1024
 
 
 def normalize_content_type(content_type: str | None) -> str:
@@ -38,6 +39,31 @@ def validate_upload(file: UploadFile) -> tuple[str, str]:
         )
 
     return file.filename, content_type
+
+
+async def read_upload_bytes(file: UploadFile) -> bytes:
+    chunks: list[bytes] = []
+    total_size = 0
+
+    while True:
+        chunk = await file.read(UPLOAD_READ_CHUNK_BYTES)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total_size += len(chunk)
+        if total_size > settings.MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail="Arquivo excede o tamanho maximo permitido.",
+            )
+
+    if total_size == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Arquivo vazio nao pode ser processado.",
+        )
+
+    return b"".join(chunks)
 
 
 def upload_job_payload(job: IngestionJobRecord, message: str | None = None) -> dict:
@@ -95,18 +121,7 @@ async def upload_document(
     logger.info("Recebendo arquivo: %s (%s)", file_name, content_type)
 
     try:
-        file_bytes = await file.read(settings.MAX_UPLOAD_BYTES + 1)
-        if not file_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail="Arquivo vazio nao pode ser processado.",
-            )
-        if len(file_bytes) > settings.MAX_UPLOAD_BYTES:
-            raise HTTPException(
-                status_code=413,
-                detail="Arquivo excede o tamanho maximo permitido.",
-            )
-
+        file_bytes = await read_upload_bytes(file)
         raw_storage_path = await storage_service.upload_file(
             file_name,
             file_bytes,

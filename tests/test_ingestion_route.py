@@ -51,6 +51,18 @@ def test_upload_rejects_empty_file(client_with_fake_db):
     assert response.json()["detail"] == "Arquivo vazio nao pode ser processado."
 
 
+def test_upload_rejects_file_larger_than_configured_limit(client_with_fake_db, monkeypatch):
+    monkeypatch.setattr("app.api.routes.ingestion.settings.MAX_UPLOAD_BYTES", 3)
+
+    response = client_with_fake_db.post(
+        "/upload",
+        files={"file": ("too-large.txt", b"large", "text/plain")},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["detail"] == "Arquivo excede o tamanho maximo permitido."
+
+
 def test_upload_creates_job_and_enqueues_processing(
     client_with_fake_db,
     monkeypatch,
