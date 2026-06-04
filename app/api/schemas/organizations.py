@@ -75,3 +75,34 @@ class InvitationResponse(BaseModel):
 
 class InvitationsResponse(BaseModel):
     invitations: list[InvitationResponse]
+
+
+class ApiKeyResponse(BaseModel):
+    id: str
+    name: str
+    key_prefix: str
+    role: str
+    created_by_user_id: str
+    created_at: str
+    revoked_at: str | None = None
+
+
+class ApiKeyCreatedResponse(ApiKeyResponse):
+    api_key: str
+
+
+class ApiKeysResponse(BaseModel):
+    api_keys: list[ApiKeyResponse]
+
+
+class CreateApiKeyRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    role: str = Field(default="member")
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not ROLE_PATTERN.fullmatch(normalized):
+            raise ValueError("role must be admin, member, or viewer")
+        return normalized

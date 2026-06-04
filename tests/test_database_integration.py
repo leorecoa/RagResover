@@ -54,6 +54,7 @@ def test_real_database_has_current_core_tables():
                     "organizations",
                     "organization_memberships",
                     "organization_invitations",
+                    "organization_api_keys",
                 ],
             )
             return {row["table_name"] for row in rows}
@@ -69,4 +70,5 @@ def test_real_database_has_current_core_tables():
         "organizations",
         "organization_memberships",
         "organization_invitations",
+        "organization_api_keys",
     }

@@ -11,7 +11,7 @@ from app.api.dependencies.auth import (
     parse_roles,
     validate_tenant_id,
 )
-from app.repositories.identity import MembershipRecord, UserRecord
+from app.repositories.identity import ApiKeyRecord, MembershipRecord, UserRecord
 
 
 def test_extract_bearer_token_accepts_authorization_header():
@@ -237,6 +237,73 @@ def test_get_tenant_context_rejects_cross_organization_jwt(monkeypatch):
         anyio.run(call_dependency)
 
     assert exc.value.status_code == 403
+
+
+def test_get_tenant_context_accepts_tenant_api_key(monkeypatch):
+    raw_key = "rrk_abcdefghijkl_secret"
+    monkeypatch.setattr(auth_module.settings, "API_AUTH_TOKEN", _Secret(""))
+    monkeypatch.setattr(auth_module, "api_key_prefix", lambda value: "abcdefghijkl")
+    monkeypatch.setattr(auth_module, "verify_api_key", lambda value, hashed: value == raw_key)
+
+    class FakeIdentityRepository:
+        def __init__(self, session):
+            self.session = session
+
+        async def get_active_api_key_by_prefix(self, *, key_prefix):
+            assert key_prefix == "abcdefghijkl"
+            return ApiKeyRecord(
+                id=UUID("33333333-3333-3333-3333-333333333333"),
+                organization_id=UUID("11111111-1111-1111-1111-111111111111"),
+                name="automation",
+                key_prefix="abcdefghijkl",
+                key_hash="hash",
+                role="member",
+                created_by_user_id=UUID("99999999-9999-9999-9999-999999999999"),
+                created_at=None,
+                revoked_at=None,
+            )
+
+    monkeypatch.setattr(auth_module, "IdentityRepository", FakeIdentityRepository)
+
+    async def call_dependency():
+        return await get_tenant_context(
+            x_tenant_id="11111111-1111-1111-1111-111111111111",
+            x_api_key=raw_key,
+            x_user_id=None,
+            x_user_roles=None,
+            authorization=None,
+            session=_FakeSession(),
+        )
+
+    import anyio
+
+    context = anyio.run(call_dependency)
+
+    assert context.tenant_id == "11111111-1111-1111-1111-111111111111"
+    assert context.user_id == "99999999-9999-9999-9999-999999999999"
+    assert context.roles == frozenset({"member"})
+
+
+def test_production_rejects_header_only_tenant_context(monkeypatch):
+    monkeypatch.setattr(auth_module.settings, "APP_ENV", "production")
+    monkeypatch.setattr(auth_module.settings, "API_AUTH_TOKEN", _Secret(""))
+
+    async def call_dependency():
+        return await get_tenant_context(
+            x_tenant_id="tenant-a",
+            x_api_key=None,
+            x_user_id=None,
+            x_user_roles="admin",
+            authorization=None,
+            session=_FakeSession(),
+        )
+
+    import anyio
+
+    with pytest.raises(HTTPException) as exc:
+        anyio.run(call_dependency)
+
+    assert exc.value.status_code == 401
 
 
 def test_ensure_admin_context_accepts_admin_role(monkeypatch):

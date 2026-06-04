@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import TenantContext, get_tenant_context
+from app.api.dependencies.auth import TenantContext, get_tenant_context, require_manager_context
 from app.api.schemas.documents import (
     DeleteDocumentResponse,
     DocumentChunksResponse,
@@ -128,7 +128,7 @@ async def list_document_chunks(
 async def delete_document(
     document_id: str,
     session: AsyncSession = Depends(get_db_session),
-    tenant: TenantContext = Depends(get_tenant_context),
+    tenant: TenantContext = Depends(require_manager_context),
 ):
     parsed_document_id = parse_document_id(document_id)
     deleted = await DocumentRepository(session).delete_document(

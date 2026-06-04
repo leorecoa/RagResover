@@ -48,6 +48,15 @@ def test_access_token_rejects_invalid_signature(monkeypatch):
         decode_access_token(token)
 
 
+def test_api_key_creation_and_verification():
+    raw_key, prefix, key_hash = security.create_api_key()
+
+    assert raw_key.startswith(f"rrk_{prefix}_")
+    assert security.api_key_prefix(raw_key) == prefix
+    assert security.verify_api_key(raw_key, key_hash) is True
+    assert security.verify_api_key(f"{raw_key}-tampered", key_hash) is False
+
+
 class _Secret:
     def __init__(self, value: str):
         self.value = value

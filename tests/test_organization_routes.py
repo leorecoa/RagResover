@@ -144,6 +144,83 @@ def test_list_members_and_update_role(app, client_with_fake_db, monkeypatch):
     assert role_response.json()["members"][0]["role"] == "viewer"
 
 
+def test_create_list_and_revoke_api_keys(app, client_with_fake_db, monkeypatch):
+    async def fake_context():
+        return owner_context()
+
+    async def fake_create_organization_api_key(**kwargs):
+        assert kwargs["name"] == "Automation"
+        assert kwargs["role"] == "member"
+        return {
+            "id": "66666666-6666-6666-6666-666666666666",
+            "name": "Automation",
+            "key_prefix": "abc123",
+            "role": "member",
+            "created_by_user_id": "11111111-1111-1111-1111-111111111111",
+            "created_at": "2026-06-04T12:00:00",
+            "revoked_at": None,
+            "api_key": "rrk_abc123_secret",
+        }
+
+    async def fake_list_organization_api_keys(**kwargs):
+        return [
+            {
+                "id": "66666666-6666-6666-6666-666666666666",
+                "name": "Automation",
+                "key_prefix": "abc123",
+                "role": "member",
+                "created_by_user_id": "11111111-1111-1111-1111-111111111111",
+                "created_at": "2026-06-04T12:00:00",
+                "revoked_at": None,
+            }
+        ]
+
+    async def fake_revoke_organization_api_key(**kwargs):
+        assert kwargs["api_key_id"] == "66666666-6666-6666-6666-666666666666"
+        return {
+            "id": "66666666-6666-6666-6666-666666666666",
+            "name": "Automation",
+            "key_prefix": "abc123",
+            "role": "member",
+            "created_by_user_id": "11111111-1111-1111-1111-111111111111",
+            "created_at": "2026-06-04T12:00:00",
+            "revoked_at": "2026-06-04T12:05:00",
+        }
+
+    app.dependency_overrides[organizations_route.require_authenticated_context] = fake_context
+    monkeypatch.setattr(
+        organizations_route,
+        "create_organization_api_key",
+        fake_create_organization_api_key,
+    )
+    monkeypatch.setattr(
+        organizations_route,
+        "list_organization_api_keys",
+        fake_list_organization_api_keys,
+    )
+    monkeypatch.setattr(
+        organizations_route,
+        "revoke_organization_api_key",
+        fake_revoke_organization_api_key,
+    )
+
+    create_response = client_with_fake_db.post(
+        "/organizations/current/api-keys",
+        json={"name": "Automation", "role": "member"},
+    )
+    list_response = client_with_fake_db.get("/organizations/current/api-keys")
+    revoke_response = client_with_fake_db.delete(
+        "/organizations/current/api-keys/66666666-6666-6666-6666-666666666666"
+    )
+
+    assert create_response.status_code == 201
+    assert create_response.json()["api_key"] == "rrk_abc123_secret"
+    assert list_response.status_code == 200
+    assert "api_key" not in list_response.json()["api_keys"][0]
+    assert revoke_response.status_code == 200
+    assert revoke_response.json()["api_keys"][0]["revoked_at"] is not None
+
+
 def test_viewer_cannot_manage_organization():
     context = auth_dependency.TenantContext(
         tenant_id="22222222-2222-2222-2222-222222222222",

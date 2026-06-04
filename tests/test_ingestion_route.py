@@ -31,10 +31,14 @@ def make_job(status="pending", tenant_id="anonymous", document_id=None, error_me
     )
 
 
+WRITE_HEADERS = {"X-Tenant-ID": "tenant-a", "X-User-Roles": "member"}
+
+
 def test_upload_rejects_unsupported_content_type(client_with_fake_db):
     response = client_with_fake_db.post(
         "/upload",
         files={"file": ("sample.bin", b"binary", "application/octet-stream")},
+        headers={"X-User-Roles": "member"},
     )
 
     assert response.status_code == 415
@@ -45,6 +49,7 @@ def test_upload_rejects_empty_file(client_with_fake_db):
     response = client_with_fake_db.post(
         "/upload",
         files={"file": ("empty.txt", b"", "text/plain")},
+        headers={"X-User-Roles": "member"},
     )
 
     assert response.status_code == 400
@@ -57,6 +62,7 @@ def test_upload_rejects_file_larger_than_configured_limit(client_with_fake_db, m
     response = client_with_fake_db.post(
         "/upload",
         files={"file": ("too-large.txt", b"large", "text/plain")},
+        headers={"X-User-Roles": "member"},
     )
 
     assert response.status_code == 413
@@ -109,7 +115,7 @@ def test_upload_creates_job_and_enqueues_processing(
     response = client_with_fake_db.post(
         "/upload",
         files={"file": ("note.txt", b"Trecho", "text/plain")},
-        headers={"X-Tenant-ID": "tenant-a"},
+        headers=WRITE_HEADERS,
     )
 
     assert response.status_code == 202
@@ -169,6 +175,7 @@ def test_upload_accepts_pdf_and_docx_content_types(
     pdf_response = client_with_fake_db.post(
         "/upload",
         files={"file": ("manual.pdf", b"fake pdf payload", "application/pdf")},
+        headers={"X-User-Roles": "member"},
     )
     docx_response = client_with_fake_db.post(
         "/upload",
@@ -179,6 +186,7 @@ def test_upload_accepts_pdf_and_docx_content_types(
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
         },
+        headers={"X-User-Roles": "member"},
     )
 
     assert pdf_response.status_code == 202
@@ -322,7 +330,7 @@ def test_retry_failed_upload_job_reenqueues_job(client_with_fake_db, monkeypatch
 
     response = client_with_fake_db.post(
         f"/uploads/{JOB_ID}/retry",
-        headers={"X-Tenant-ID": "tenant-a"},
+        headers=WRITE_HEADERS,
     )
 
     assert response.status_code == 200
@@ -352,7 +360,7 @@ def test_retry_upload_job_rejects_invalid_states(
 
     response = client_with_fake_db.post(
         f"/uploads/{JOB_ID}/retry",
-        headers={"X-Tenant-ID": "tenant-a"},
+        headers=WRITE_HEADERS,
     )
 
     assert response.status_code == 409
@@ -375,7 +383,7 @@ def test_retry_upload_job_returns_404_for_other_tenant(client_with_fake_db, monk
 
     response = client_with_fake_db.post(
         f"/uploads/{JOB_ID}/retry",
-        headers={"X-Tenant-ID": "tenant-a"},
+        headers=WRITE_HEADERS,
     )
 
     assert response.status_code == 404
@@ -407,7 +415,7 @@ def test_cancel_pending_upload_job(client_with_fake_db, monkeypatch):
 
     response = client_with_fake_db.post(
         f"/uploads/{JOB_ID}/cancel",
-        headers={"X-Tenant-ID": "tenant-a"},
+        headers=WRITE_HEADERS,
     )
 
     assert response.status_code == 200
@@ -436,7 +444,7 @@ def test_cancel_upload_job_rejects_terminal_states(
 
     response = client_with_fake_db.post(
         f"/uploads/{JOB_ID}/cancel",
-        headers={"X-Tenant-ID": "tenant-a"},
+        headers=WRITE_HEADERS,
     )
 
     assert response.status_code == 409
@@ -458,10 +466,20 @@ def test_cancel_upload_job_rejects_processing_state(client_with_fake_db, monkeyp
 
     response = client_with_fake_db.post(
         f"/uploads/{JOB_ID}/cancel",
-        headers={"X-Tenant-ID": "tenant-a"},
+        headers=WRITE_HEADERS,
     )
 
     assert response.status_code == 409
     assert response.json()["detail"] == (
         "Upload job em processamento nao pode ser cancelado com seguranca."
     )
+
+
+def test_viewer_cannot_upload_document(client_with_fake_db):
+    response = client_with_fake_db.post(
+        "/upload",
+        files={"file": ("note.txt", b"Trecho", "text/plain")},
+        headers={"X-Tenant-ID": "tenant-a", "X-User-Roles": "viewer"},
+    )
+
+    assert response.status_code == 403

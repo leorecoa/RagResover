@@ -5,11 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import TenantContext
 from app.api.schemas.organizations import (
+    ApiKeyCreatedResponse,
+    ApiKeyResponse,
     InvitationResponse,
     OrganizationMemberResponse,
     OrganizationResponse,
 )
 from app.repositories.identity import IdentityRepository
+from app.services.security import create_api_key
 
 
 MANAGER_ROLES = frozenset({"owner", "admin"})
@@ -73,6 +76,18 @@ def invitation_payload(invitation) -> InvitationResponse:
         invited_by_user_id=str(invitation.invited_by_user_id),
         status=invitation.status,
         created_at=invitation.created_at.isoformat(),
+    )
+
+
+def api_key_payload(record) -> ApiKeyResponse:
+    return ApiKeyResponse(
+        id=str(record.id),
+        name=record.name,
+        key_prefix=record.key_prefix,
+        role=record.role,
+        created_by_user_id=str(record.created_by_user_id),
+        created_at=record.created_at.isoformat(),
+        revoked_at=record.revoked_at.isoformat() if record.revoked_at else None,
     )
 
 
@@ -197,3 +212,64 @@ async def update_member_role(
         role=updated.role,
         created_at=updated.created_at.isoformat(),
     )
+
+
+async def create_organization_api_key(
+    *,
+    session: AsyncSession,
+    context: TenantContext,
+    name: str,
+    role: str,
+) -> ApiKeyCreatedResponse:
+    ensure_manager(context)
+    ensure_owner_for_admin_change(context, role)
+    raw_key, prefix, key_hash = create_api_key()
+    repository = IdentityRepository(session)
+    record = await repository.create_api_key(
+        organization_id=_organization_id(context),
+        name=name,
+        key_prefix=prefix,
+        key_hash=key_hash,
+        role=role,
+        created_by_user_id=_user_id(context),
+    )
+    payload = api_key_payload(record)
+    return ApiKeyCreatedResponse(**payload.model_dump(), api_key=raw_key)
+
+
+async def list_organization_api_keys(
+    *,
+    session: AsyncSession,
+    context: TenantContext,
+) -> list[ApiKeyResponse]:
+    ensure_manager(context)
+    repository = IdentityRepository(session)
+    records = await repository.list_api_keys(organization_id=_organization_id(context))
+    return [api_key_payload(record) for record in records]
+
+
+async def revoke_organization_api_key(
+    *,
+    session: AsyncSession,
+    context: TenantContext,
+    api_key_id: str,
+) -> ApiKeyResponse:
+    ensure_manager(context)
+    try:
+        parsed_id = UUID(api_key_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key nao encontrada.",
+        ) from exc
+    repository = IdentityRepository(session)
+    record = await repository.revoke_api_key(
+        organization_id=_organization_id(context),
+        api_key_id=parsed_id,
+    )
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API key nao encontrada.",
+        )
+    return api_key_payload(record)

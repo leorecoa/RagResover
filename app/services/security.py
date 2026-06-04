@@ -11,10 +11,15 @@ from app.core.config import settings
 
 PASSWORD_ALGORITHM = "pbkdf2_sha256"
 JWT_ALGORITHM = "HS256"
+API_KEY_PREFIX = "rrk"
 
 
 class TokenError(ValueError):
     """Raised when a JWT cannot be decoded or verified."""
+
+
+class ApiKeyFormatError(ValueError):
+    """Raised when an API key does not match the expected format."""
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -63,6 +68,28 @@ def verify_password(password: str, password_hash: str) -> bool:
         iterations,
     )
     return hmac.compare_digest(actual_digest, expected_digest)
+
+
+def create_api_key() -> tuple[str, str, str]:
+    prefix = secrets.token_urlsafe(9).replace("-", "").replace("_", "")[:12]
+    secret = secrets.token_urlsafe(32)
+    api_key = f"{API_KEY_PREFIX}_{prefix}_{secret}"
+    return api_key, prefix, hash_api_key(api_key)
+
+
+def hash_api_key(api_key: str) -> str:
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+
+def api_key_prefix(api_key: str) -> str:
+    parts = api_key.strip().split("_", 2)
+    if len(parts) != 3 or parts[0] != API_KEY_PREFIX or not parts[1]:
+        raise ApiKeyFormatError("Invalid API key format.")
+    return parts[1]
+
+
+def verify_api_key(api_key: str, api_key_hash: str) -> bool:
+    return hmac.compare_digest(hash_api_key(api_key), api_key_hash)
 
 
 def create_access_token(

@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import TenantContext, get_tenant_context
+from app.api.dependencies.auth import TenantContext, get_tenant_context, require_write_context
 from app.api.schemas.ingestion import (
     UploadJobListResponse,
     UploadJobResponse,
@@ -116,7 +116,7 @@ def invalid_action_response(detail: str) -> HTTPException:
 async def upload_document(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_db_session),
-    tenant: TenantContext = Depends(get_tenant_context),
+    tenant: TenantContext = Depends(require_write_context),
 ):
     file_name, content_type = validate_upload(file)
     logger.info("Recebendo arquivo: %s (%s)", file_name, content_type)
@@ -226,7 +226,7 @@ async def get_upload_job(
 async def retry_upload_job(
     job_id: str,
     session: AsyncSession = Depends(get_db_session),
-    tenant: TenantContext = Depends(get_tenant_context),
+    tenant: TenantContext = Depends(require_write_context),
 ):
     parsed_job_id = parse_job_id(job_id)
     jobs = IngestionJobRepository(session)
@@ -271,7 +271,7 @@ async def retry_upload_job(
 async def cancel_upload_job(
     job_id: str,
     session: AsyncSession = Depends(get_db_session),
-    tenant: TenantContext = Depends(get_tenant_context),
+    tenant: TenantContext = Depends(require_write_context),
 ):
     parsed_job_id = parse_job_id(job_id)
     jobs = IngestionJobRepository(session)

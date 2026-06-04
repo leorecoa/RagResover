@@ -7,6 +7,7 @@ from app.repositories.documents import DocumentChunkRecord, DocumentRecord
 
 DOCUMENT_ID = UUID("11111111-1111-1111-1111-111111111111")
 CHUNK_ID = UUID("22222222-2222-2222-2222-222222222222")
+ADMIN_HEADERS = {"X-Tenant-ID": "tenant-a", "X-User-Roles": "admin"}
 
 
 def make_document(tenant_id="tenant-a"):
@@ -147,7 +148,7 @@ def test_delete_document_removes_tenant_document(client_with_fake_db):
     with patch_repository(repository):
         response = client_with_fake_db.delete(
             f"/documents/{DOCUMENT_ID}",
-            headers={"X-Tenant-ID": "tenant-a"},
+            headers=ADMIN_HEADERS,
         )
 
     assert response.status_code == 200
@@ -162,8 +163,17 @@ def test_delete_document_returns_404_for_other_tenant_document(client_with_fake_
     with patch_repository(repository):
         response = client_with_fake_db.delete(
             f"/documents/{DOCUMENT_ID}",
-            headers={"X-Tenant-ID": "tenant-a"},
+            headers=ADMIN_HEADERS,
         )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Documento nao encontrado."
+
+
+def test_viewer_cannot_delete_document(client_with_fake_db):
+    response = client_with_fake_db.delete(
+        f"/documents/{DOCUMENT_ID}",
+        headers={"X-Tenant-ID": "tenant-a", "X-User-Roles": "viewer"},
+    )
+
+    assert response.status_code == 403

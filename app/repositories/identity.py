@@ -51,6 +51,19 @@ class InvitationRecord:
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class ApiKeyRecord:
+    id: UUID
+    organization_id: UUID
+    name: str
+    key_prefix: str
+    key_hash: str
+    role: str
+    created_by_user_id: UUID
+    created_at: datetime
+    revoked_at: datetime | None
+
+
 class IdentityRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -103,6 +116,20 @@ class IdentityRepository:
             invited_by_user_id=row["invited_by_user_id"],
             status=row["status"],
             created_at=row["created_at"],
+        )
+
+    @staticmethod
+    def _api_key_from_row(row) -> ApiKeyRecord:
+        return ApiKeyRecord(
+            id=row["id"],
+            organization_id=row["organization_id"],
+            name=row["name"],
+            key_prefix=row["key_prefix"],
+            key_hash=row["key_hash"],
+            role=row["role"],
+            created_by_user_id=row["created_by_user_id"],
+            created_at=row["created_at"],
+            revoked_at=row["revoked_at"],
         )
 
     async def create_user(
@@ -369,3 +396,142 @@ class IdentityRepository:
             {"organization_id": organization_id},
         )
         return [self._invitation_from_row(row) for row in result.mappings().all()]
+
+    async def create_api_key(
+        self,
+        *,
+        organization_id: UUID,
+        name: str,
+        key_prefix: str,
+        key_hash: str,
+        role: str,
+        created_by_user_id: UUID,
+    ) -> ApiKeyRecord:
+        result = await self.session.execute(
+            text(
+                """
+                INSERT INTO organization_api_keys (
+                    organization_id,
+                    name,
+                    key_prefix,
+                    key_hash,
+                    role,
+                    created_by_user_id
+                )
+                VALUES (
+                    :organization_id,
+                    :name,
+                    :key_prefix,
+                    :key_hash,
+                    lower(:role),
+                    :created_by_user_id
+                )
+                RETURNING
+                    id,
+                    organization_id,
+                    name,
+                    key_prefix,
+                    key_hash,
+                    role,
+                    created_by_user_id,
+                    created_at,
+                    revoked_at
+                """
+            ),
+            {
+                "organization_id": organization_id,
+                "name": name.strip(),
+                "key_prefix": key_prefix,
+                "key_hash": key_hash,
+                "role": role.strip().lower(),
+                "created_by_user_id": created_by_user_id,
+            },
+        )
+        await self.session.commit()
+        return self._api_key_from_row(result.mappings().one())
+
+    async def list_api_keys(self, *, organization_id: UUID) -> list[ApiKeyRecord]:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    organization_id,
+                    name,
+                    key_prefix,
+                    key_hash,
+                    role,
+                    created_by_user_id,
+                    created_at,
+                    revoked_at
+                FROM organization_api_keys
+                WHERE organization_id = :organization_id
+                ORDER BY created_at DESC
+                """
+            ),
+            {"organization_id": organization_id},
+        )
+        return [self._api_key_from_row(row) for row in result.mappings().all()]
+
+    async def get_active_api_key_by_prefix(
+        self,
+        *,
+        key_prefix: str,
+    ) -> ApiKeyRecord | None:
+        result = await self.session.execute(
+            text(
+                """
+                SELECT
+                    id,
+                    organization_id,
+                    name,
+                    key_prefix,
+                    key_hash,
+                    role,
+                    created_by_user_id,
+                    created_at,
+                    revoked_at
+                FROM organization_api_keys
+                WHERE key_prefix = :key_prefix
+                AND revoked_at IS NULL
+                """
+            ),
+            {"key_prefix": key_prefix},
+        )
+        row = result.mappings().first()
+        return self._api_key_from_row(row) if row else None
+
+    async def revoke_api_key(
+        self,
+        *,
+        organization_id: UUID,
+        api_key_id: UUID,
+    ) -> ApiKeyRecord | None:
+        result = await self.session.execute(
+            text(
+                """
+                UPDATE organization_api_keys
+                SET revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                WHERE organization_id = :organization_id
+                AND id = :api_key_id
+                AND revoked_at IS NULL
+                RETURNING
+                    id,
+                    organization_id,
+                    name,
+                    key_prefix,
+                    key_hash,
+                    role,
+                    created_by_user_id,
+                    created_at,
+                    revoked_at
+                """
+            ),
+            {
+                "organization_id": organization_id,
+                "api_key_id": api_key_id,
+            },
+        )
+        await self.session.commit()
+        row = result.mappings().first()
+        return self._api_key_from_row(row) if row else None

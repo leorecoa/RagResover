@@ -8,7 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.db.session import get_db_session
 from app.repositories.identity import IdentityRepository
-from app.services.security import TokenError, decode_access_token
+from app.services.security import (
+    ApiKeyFormatError,
+    TokenError,
+    api_key_prefix,
+    decode_access_token,
+    verify_api_key,
+)
 
 
 TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -84,6 +90,23 @@ async def get_tenant_context(
     )
     bearer_token = extract_bearer_token(authorization)
 
+    legacy_token = (
+        settings.API_AUTH_TOKEN.get_secret_value().strip()
+        if settings.has_api_auth_token
+        else ""
+    )
+    if (
+        x_api_key
+        and x_api_key.strip()
+        and x_api_key.strip() != legacy_token
+        and hasattr(session, "execute")
+    ):
+        return await get_api_key_tenant_context(
+            api_key=x_api_key.strip(),
+            requested_tenant_id=x_tenant_id,
+            session=session,
+        )
+
     if bearer_token and (
         not settings.has_api_auth_token
         or bearer_token != settings.API_AUTH_TOKEN.get_secret_value().strip()
@@ -94,6 +117,7 @@ async def get_tenant_context(
             session=session if hasattr(session, "execute") else None,
         )
 
+    legacy_authenticated = False
     if settings.has_api_auth_token:
         provided_token = bearer_token or (x_api_key or "").strip()
         expected_token = settings.API_AUTH_TOKEN.get_secret_value().strip()
@@ -107,6 +131,13 @@ async def get_tenant_context(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Credenciais invalidas.",
             )
+        legacy_authenticated = True
+
+    if settings.is_production and not legacy_authenticated:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="JWT ou API key tenant-scoped obrigatorio em producao.",
+        )
 
     if x_tenant_id and x_tenant_id.strip():
         return TenantContext(
@@ -127,6 +158,46 @@ async def get_tenant_context(
         is_anonymous=True,
         user_id=user_id,
         roles=roles,
+    )
+
+
+async def get_api_key_tenant_context(
+    *,
+    api_key: str,
+    requested_tenant_id: str | None,
+    session: AsyncSession,
+) -> TenantContext:
+    try:
+        prefix = api_key_prefix(api_key)
+    except ApiKeyFormatError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key invalida.",
+        ) from exc
+
+    repository = IdentityRepository(session)
+    record = await repository.get_active_api_key_by_prefix(key_prefix=prefix)
+    if record is None or not verify_api_key(api_key, record.key_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key invalida.",
+        )
+
+    tenant_id = str(record.organization_id)
+    if requested_tenant_id and requested_tenant_id.strip():
+        requested = validate_tenant_id(requested_tenant_id)
+        if requested != tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key nao pertence ao tenant informado.",
+            )
+
+    return TenantContext(
+        tenant_id=tenant_id,
+        is_anonymous=False,
+        user_id=str(record.created_by_user_id),
+        roles=frozenset({record.role}),
+        memberships={tenant_id: record.role},
     )
 
 
@@ -211,6 +282,23 @@ def ensure_authenticated_context(context: TenantContext) -> TenantContext:
     return context
 
 
+def ensure_any_role_context(context: TenantContext, allowed_roles: set[str]) -> TenantContext:
+    if not context.roles.intersection(allowed_roles):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permissao insuficiente para esta acao.",
+        )
+    return context
+
+
+def ensure_write_context(context: TenantContext) -> TenantContext:
+    return ensure_any_role_context(context, {"owner", "admin", "member"})
+
+
+def ensure_manager_context(context: TenantContext) -> TenantContext:
+    return ensure_any_role_context(context, {"owner", "admin"})
+
+
 async def require_admin_context(
     context: TenantContext = Depends(get_tenant_context),
 ) -> TenantContext:
@@ -221,3 +309,15 @@ async def require_authenticated_context(
     context: TenantContext = Depends(get_tenant_context),
 ) -> TenantContext:
     return ensure_authenticated_context(context)
+
+
+async def require_write_context(
+    context: TenantContext = Depends(get_tenant_context),
+) -> TenantContext:
+    return ensure_write_context(context)
+
+
+async def require_manager_context(
+    context: TenantContext = Depends(get_tenant_context),
+) -> TenantContext:
+    return ensure_manager_context(context)
