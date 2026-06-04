@@ -33,12 +33,14 @@ Before selling this as a hosted product, add or configure:
 - HTTPS/TLS at the edge.
 - Restricted CORS origins.
 - Rate limiting for upload, search, and chat.
-- Request IDs and structured logs.
+- Request IDs, W3C trace context propagation, and structured logs.
+- Protected `/metrics` access for production observability endpoints.
 - Backup and restore for Postgres and object storage.
 - Alembic migrations in the deployment pipeline.
 - A durable Redis instance for ingestion queues.
 - Separate API and ingestion worker processes.
 - Operational access controls for retry/cancel actions in admin contexts.
+- Retention policy for audit events.
 - Monitoring for API latency, provider errors, token usage, and storage growth.
 
 ## Environment Notes
@@ -58,7 +60,12 @@ STORAGE_ACCESS_KEY=...
 STORAGE_SECRET_KEY=...
 ALLOW_ANONYMOUS_ACCESS=false
 API_AUTH_TOKEN=change-this-token
+ADMIN_ROLE_NAME=admin
+METRICS_REQUIRE_ADMIN=true
 ```
+
+When `METRICS_REQUIRE_ADMIN=true`, callers must provide a valid API token and
+`X-User-Roles` containing the configured admin role.
 
 Run migrations during deploy:
 

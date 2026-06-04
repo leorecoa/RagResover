@@ -31,13 +31,13 @@ app/services
   Business workflows and external provider integrations.
 
 app/repositories
-  SQL and persistence operations.
+  SQL, persistence operations, and audit events.
 
 app/db
   SQLAlchemy async engine and session factory.
 
 app/core
-  Config, app factory, logging, constants, lifespan.
+  Config, app factory, logging, request observability middleware, trace context propagation, metrics, constants, lifespan.
 
 app/workers
   Separate worker entrypoints for durable background processing.
@@ -52,6 +52,7 @@ migrations
 POST /upload
   -> resolve tenant from headers/config
   -> validate file
+  -> read file in bounded chunks
   -> store raw file in MinIO
   -> create ingestion_jobs row with status pending
   -> enqueue job_id through IngestionQueue
@@ -62,7 +63,7 @@ Ingestion worker
   -> mark job processing
   -> increment attempts and set started_at
   -> download raw file from MinIO
-  -> parse text, PDF, or DOCX content
+  -> parse text, HTML, PDF, or DOCX content
   -> split into chunks
   -> generate embeddings
   -> persist source document and chunks in Postgres
@@ -90,6 +91,7 @@ POST /uploads/{job_id}/cancel
 ```
 
 PDF parsing preserves page metadata when text is extractable. DOCX parsing preserves paragraph metadata and section headings when available.
+HTML parsing preserves title, block, heading, and section metadata.
 
 ## Document Management Flow
 
@@ -112,6 +114,7 @@ DELETE /documents/{document_id}
   -> resolve tenant from headers/config
   -> delete only matching tenant document
   -> cascade-delete document_chunks through the database foreign key
+  -> write best-effort audit event
 ```
 
 ## Retrieval Flow
@@ -149,6 +152,7 @@ Primary tables are managed through Alembic migrations:
 - `source_documents`: one row per uploaded file.
 - `document_chunks`: one row per chunk with optional vector embedding.
 - `ingestion_jobs`: one row per async upload request, raw file path, attempts, max attempts, timing, and processing status.
+- `audit_events`: best-effort audit trail for mutable upload and document operations.
 - `conversations`: reserved for future chat history.
 - `messages`: reserved for future chat messages.
 
@@ -181,6 +185,8 @@ The MVP uses header-based tenant auth:
 - `ALLOW_ANONYMOUS_ACCESS=true`: missing tenant header falls back to `DEFAULT_TENANT_ID`.
 - `ALLOW_ANONYMOUS_ACCESS=false`: missing tenant header returns `401`.
 - `API_AUTH_TOKEN`: optional shared token. When configured, requests must send `Authorization: Bearer <token>` or `X-API-Key: <token>`.
+- `X-User-ID`: optional actor identifier for audit and role-aware checks.
+- `X-User-Roles`: optional comma-separated actor roles, used by admin-gated operational endpoints.
 
 ## Provider Strategy
 
@@ -203,14 +209,13 @@ RagResover supports:
 - optional `score_threshold` per search/chat request
 - optional `RETRIEVAL_SCORE_THRESHOLD` default from `.env`
 - exact JSONB metadata filters through `metadata_filters`
-- a no-op reranker interface prepared for future providers
+- a reranker interface with `none` and Cohere providers
 - debug-only retrieval diagnostics
 
 ## Current Constraints
 
-- Upload reads the whole file into memory.
+- Upload reads in bounded chunks but still materializes accepted files for storage/parsing.
 - Upload processing has durable Redis queue support, but retry scheduling is still simple and immediate.
 - Scanned PDFs without embedded text are not OCR-processed yet.
-- HTML parsing is not implemented yet.
 - Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.
 - Authentication is MVP header/token based, not full user account management yet.

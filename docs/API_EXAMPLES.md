@@ -18,6 +18,29 @@ Invoke-RestMethod http://localhost:8000/health
 Invoke-RestMethod http://localhost:8000/ready
 ```
 
+## Metrics
+
+```powershell
+Invoke-RestMethod http://localhost:8000/metrics
+```
+
+The response is Prometheus-style text with request counters and duration sums.
+
+If `METRICS_REQUIRE_ADMIN=true`, include auth and admin role headers:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/metrics `
+  -Headers @{
+    "Authorization" = "Bearer your-token"
+    "X-Tenant-ID" = "tenant-admin"
+    "X-User-ID" = "admin-user"
+    "X-User-Roles" = "admin"
+  }
+```
+
+All API responses include `X-Request-ID` and `traceparent` headers. Clients may
+send their own values to correlate request logs and distributed traces.
+
 ## Upload
 
 ```powershell
@@ -40,6 +63,14 @@ DOCX:
 curl.exe -X POST http://localhost:8000/upload `
   -H "X-Tenant-ID: tenant-demo" `
   -F "file=@manual.docx;type=application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+```
+
+HTML:
+
+```powershell
+curl.exe -X POST http://localhost:8000/upload `
+  -H "X-Tenant-ID: tenant-demo" `
+  -F "file=@manual.html;type=text/html"
 ```
 
 Example response:
@@ -192,6 +223,17 @@ When `DEBUG=true`, the response includes retrieval diagnostics:
 }
 ```
 
+To enable Cohere reranking for search/chat, configure:
+
+```powershell
+$env:RERANKER_PROVIDER="cohere"
+$env:COHERE_API_KEY="your-cohere-key"
+$env:COHERE_RERANK_MODEL="rerank-v4.0-pro"
+```
+
+When enabled, diagnostics show `"reranker_provider": "cohere"` and
+`"reranker_applied": true`.
+
 ## Documents
 
 List tenant documents:
@@ -282,6 +324,9 @@ $headers = @{
 }
 ```
 
+Role-aware administrative checks use optional `X-User-ID` and comma-separated
+`X-User-Roles` headers.
+
 ## Demo Flow
 
 For an end-to-end product demo, start the stack and run:
@@ -290,7 +335,7 @@ For an end-to-end product demo, start the stack and run:
 powershell -ExecutionPolicy Bypass -File scripts/demo_flow.ps1
 ```
 
-The script creates local PDF/DOCX fixtures in `.demo/`, uploads them with
+The script creates local PDF/DOCX/HTML fixtures in `.demo/`, uploads them with
 `X-Tenant-ID: tenant-demo`, runs search/chat, prints source metadata, and checks
 tenant isolation against `tenant-other`.
 

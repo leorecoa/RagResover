@@ -29,12 +29,14 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 
 - Async document upload with durable Redis queue, retries, observable status, and job actions
 - Tenant-scoped document management with detail, chunk inspection, and delete
-- Text extraction for TXT, Markdown, JSON, PDF, and DOCX
+- Text extraction for TXT, Markdown, HTML, JSON, PDF, and DOCX
 - Text chunking with LangChain text splitters
 - Vector persistence in PostgreSQL with pgvector
 - Semantic search over indexed chunks
 - Retrieval controls with score threshold and metadata filters
+- Optional Cohere reranking for retrieved candidates
 - Header-based tenant isolation for upload, search, and chat
+- Persistent audit events for mutable upload and document operations
 - RAG chat with retrieved sources
 - Provider switch between OpenAI and local Ollama
 - Docker Compose stack for local development
@@ -57,7 +59,7 @@ app/
   core/           app factory, config, logging, lifecycle
   db/             async database session
   migrations/     Alembic database migrations
-  repositories/   SQL and persistence operations
+  repositories/   SQL, persistence operations, and audit events
   services/       ingestion, storage, embeddings, chat
   workers/        separate ingestion worker entrypoints
 ```
@@ -68,6 +70,8 @@ Supported upload content types:
 
 - `text/plain`
 - `text/markdown`
+- `text/html`
+- `application/xhtml+xml`
 - `application/json`
 - `application/pdf`
 - `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
@@ -115,7 +119,7 @@ Run the complete local demo flow after the stack is up:
 powershell -ExecutionPolicy Bypass -File scripts/demo_flow.ps1
 ```
 
-The demo generates local PDF/DOCX fixtures under `.demo/`, uploads them with
+The demo generates local PDF/DOCX/HTML fixtures under `.demo/`, uploads them with
 `X-Tenant-ID`, runs search/chat, prints source metadata and retrieval
 diagnostics when `DEBUG=true`, and validates that one tenant cannot retrieve
 another tenant's documents.
@@ -128,6 +132,7 @@ Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
 | --- | --- | --- |
 | GET | `/health` | Lightweight liveness check |
 | GET | `/ready` | Dependency readiness check |
+| GET | `/metrics` | Prometheus-style request counters and duration sums |
 | POST | `/upload` | Create an async upload processing job |
 | GET | `/uploads` | List upload jobs for the current tenant |
 | GET | `/uploads/{job_id}` | Inspect one upload job status |
@@ -144,9 +149,17 @@ Examples: [docs/API_EXAMPLES.md](docs/API_EXAMPLES.md).
 
 Search and chat accept optional `score_threshold` and `metadata_filters` fields. When `DEBUG=true`, responses include retrieval diagnostics such as fetch size, effective threshold, filters, embedding provider, and reranker provider.
 
+Set `RERANKER_PROVIDER=cohere`, `COHERE_API_KEY`, and optionally `COHERE_RERANK_MODEL` to rerank retrieved candidates before search/chat responses are returned.
+
 Upload now stores the raw file in MinIO, returns `202 Accepted` with a `job_id`, and enqueues the job. Poll `GET /uploads/{job_id}` until the status is `completed`, `failed`, or `canceled`; completed jobs include the indexed `document_id`, while failed jobs include attempts and error details. `GET /uploads` supports filters such as `status`, `filename`, `content_type`, date range, `document_id`, `limit`, and `offset`.
 
-Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`.
+Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`. Requests can also send `X-User-ID` and comma-separated `X-User-Roles` for role-aware administrative checks.
+
+Mutable upload/document actions write best-effort audit events with tenant, optional user, roles, action, resource, and metadata.
+
+Every response includes `X-Request-ID` and `traceparent`. Send your own `X-Request-ID` or W3C `traceparent` to correlate client logs with backend request duration logs and downstream traces.
+
+`GET /metrics` exposes process-local Prometheus-style counters for HTTP requests and duration sums. Set `METRICS_REQUIRE_ADMIN=true` with `API_AUTH_TOKEN` to require `X-User-Roles: admin` for metrics access.
 
 ## Frontend
 

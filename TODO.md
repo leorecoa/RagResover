@@ -33,17 +33,22 @@
 
 ## Proximas tarefas
 
-- [ ] Implementar reranking real com Cohere ou provider compativel
-- [ ] Adicionar parser HTML e OCR para PDFs escaneados
-- [ ] Ampliar cobertura de testes com casos de integracao e banco real
-- [ ] Endurecer workflow de migrations com testes de banco real e downgrade smoke test
+- [x] Implementar reranking real com Cohere ou provider compativel
+- [x] Adicionar parser HTML com metadados de titulo/secao
+- [ ] Adicionar OCR para PDFs escaneados
+- [x] Adicionar testes opcionais de integracao com banco real
+- [x] Adicionar smoke test offline de downgrade no workflow local de migrations
+- [ ] Endurecer workflow de migrations com testes de banco real
 - [ ] Evoluir frontend para Next.js/React se precisar de estado mais complexo
-- [ ] Endurecer auth com usuarios reais, roles, memberships e auditoria
-- [ ] Adicionar observabilidade mais completa
+- [x] Adicionar contexto MVP de usuario/roles e gate admin para metricas
+- [x] Adicionar auditoria persistente para upload e documentos
+- [ ] Endurecer auth com usuarios reais e memberships
+- [x] Adicionar request id, logs de duracao por request e endpoint `/metrics`
+- [x] Adicionar propagacao W3C `traceparent` para traces distribuidos opcionais
 
 ## Riscos tecnicos atuais
 
-- Upload ainda le o arquivo inteiro em memoria.
+- Upload faz leitura em chunks com limite antecipado, mas ainda materializa bytes para storage/parsing.
 - Sem `OPENAI_API_KEY`, os chunks sao salvos sem embedding.
 - O banco precisa estar inicializado com `scripts/init_db.sql`.
-- O fluxo de chat inicial existe, mas ainda precisa de reranking real e melhor avaliacao de qualidade.
+- O fluxo de chat inicial existe, mas ainda precisa de melhor avaliacao de qualidade.
