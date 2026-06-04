@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.db.session import get_db_session
 from app.repositories.ingestion_jobs import IngestionJobRecord, IngestionJobRepository
 from app.services.ingestion_queue import get_ingestion_queue
+from app.services.audit import record_audit_event
 from app.services.storage import storage_service
 
 logger = logging.getLogger("rag_resover")
@@ -149,6 +150,18 @@ async def upload_document(
                 detail="Fila de ingestao indisponivel.",
             ) from exc
 
+        await record_audit_event(
+            session=session,
+            tenant=tenant,
+            action="upload.create",
+            resource_type="upload_job",
+            resource_id=str(job.id),
+            metadata={
+                "filename": job.file_name,
+                "content_type": job.content_type,
+                "file_size": job.file_size,
+            },
+        )
         return upload_job_payload(job)
     except HTTPException:
         raise
@@ -243,6 +256,14 @@ async def retry_upload_job(
             detail="Fila de ingestao indisponivel.",
         ) from exc
 
+    await record_audit_event(
+        session=session,
+        tenant=tenant,
+        action="upload.retry",
+        resource_type="upload_job",
+        resource_id=str(retried.id),
+        metadata={"filename": retried.file_name},
+    )
     return upload_job_payload(retried, message="Upload job reenfileirado para processamento.")
 
 
@@ -271,4 +292,12 @@ async def cancel_upload_job(
     if canceled is None:
         raise invalid_action_response("Upload job nao pode ser cancelado neste estado.")
 
+    await record_audit_event(
+        session=session,
+        tenant=tenant,
+        action="upload.cancel",
+        resource_type="upload_job",
+        resource_id=str(canceled.id),
+        metadata={"filename": canceled.file_name},
+    )
     return upload_job_payload(canceled, message="Upload job cancelado.")

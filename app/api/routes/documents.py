@@ -12,6 +12,7 @@ from app.api.schemas.documents import (
 )
 from app.db.session import get_db_session
 from app.repositories.documents import DocumentChunkRecord, DocumentRecord, DocumentRepository
+from app.services.audit import record_audit_event
 
 router = APIRouter(tags=["Documents"])
 
@@ -139,6 +140,13 @@ async def delete_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Documento nao encontrado.",
         )
+    await record_audit_event(
+        session=session,
+        tenant=tenant,
+        action="document.delete",
+        resource_type="document",
+        resource_id=str(parsed_document_id),
+    )
     return {
         "document_id": str(parsed_document_id),
         "status": "deleted",
