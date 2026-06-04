@@ -19,6 +19,7 @@ fully managed enterprise product without the production hardening below.
 - Header-based tenant isolation for upload, documents, search, and chat.
 - JWT auth API with users, organizations, and membership-backed tenant access.
 - Frontend login, registration, saved JWT session validation, and current organization selection.
+- Organization settings, member listing, pending invitations, and MVP role management.
 - MVP API token compatibility via bearer token or `X-API-Key`.
 - Optional user/role headers for role-aware operational checks.
 - Tenant-scoped document management UI and API.
@@ -31,8 +32,10 @@ fully managed enterprise product without the production hardening below.
 ## Partially Ready
 
 - Authentication has real backend users, organizations, memberships, JWTs,
-  frontend login, and organization selection, but still needs organization
-  settings screens, invite flows, and tenant API keys.
+  frontend login, organization selection, settings screens, invite records,
+  and MVP role management, but still needs tenant API keys and invite email delivery.
+- RBAC exists for organization management, but upload/search/chat/document
+  permissions still need full role-by-action policy coverage.
 - Tenant isolation is backed by memberships for JWT requests, but Postgres RLS
   and broader attack-test coverage are still production-hardening items.
 - Audit events are persisted, but retention, export, review workflows, and
@@ -48,7 +51,7 @@ fully managed enterprise product without the production hardening below.
 
 ## Still Required For Paid Customers
 
-- Organization settings and invite flows.
+- Invite email delivery and acceptance flow.
 - Tenant-scoped API keys.
 - Full RBAC permissions for admin and end-user actions.
 - Rate limiting and abuse protection for upload, search, chat, and management endpoints.

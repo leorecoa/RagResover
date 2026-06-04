@@ -84,6 +84,44 @@ $headers = @{
 Invoke-RestMethod http://localhost:8000/auth/me -Headers $headers
 ```
 
+## Organization Settings
+
+Inspect the current organization:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/organizations/current -Headers $headers
+```
+
+Rename the organization. Requires `owner` or `admin` membership:
+
+```powershell
+@{ name = "Acme Legal" } | ConvertTo-Json |
+  Invoke-RestMethod http://localhost:8000/organizations/current `
+    -Method Patch `
+    -Headers $headers `
+    -ContentType "application/json"
+```
+
+Invite a member. Requires `owner` or `admin`; only `owner` can invite `admin`:
+
+```powershell
+@{
+  email = "analyst@example.com"
+  role = "member"
+} | ConvertTo-Json |
+  Invoke-RestMethod http://localhost:8000/organizations/current/invitations `
+    -Method Post `
+    -Headers $headers `
+    -ContentType "application/json"
+```
+
+List members and pending invitations:
+
+```powershell
+Invoke-RestMethod http://localhost:8000/organizations/current/members -Headers $headers
+Invoke-RestMethod http://localhost:8000/organizations/current/invitations -Headers $headers
+```
+
 ## Upload
 
 ```powershell

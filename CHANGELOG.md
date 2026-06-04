@@ -32,3 +32,4 @@ All notable changes to RagResover should be documented in this file.
 - JWT auth API with users, organizations, and membership-backed tenant access.
 - Frontend login, registration, saved JWT session validation, and current organization selection.
 - Production config now rejects anonymous access.
+- Organization settings API/UI with member listing, pending invitations, and MVP role management.

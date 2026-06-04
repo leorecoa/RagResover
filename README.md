@@ -137,6 +137,12 @@ Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
 | POST | `/auth/register` | Create a user, organization, owner membership, and JWT |
 | POST | `/auth/login` | Authenticate with email/password and return JWT |
 | GET | `/auth/me` | Inspect the current JWT identity and memberships |
+| GET | `/organizations/current` | Inspect current organization settings and caller role |
+| PATCH | `/organizations/current` | Rename the current organization |
+| GET | `/organizations/current/members` | List organization members and roles |
+| PATCH | `/organizations/current/members/{user_id}` | Update one member role |
+| GET | `/organizations/current/invitations` | List organization invitations |
+| POST | `/organizations/current/invitations` | Create or refresh a pending invitation |
 | POST | `/upload` | Create an async upload processing job |
 | GET | `/uploads` | List upload jobs for the current tenant |
 | GET | `/uploads/{job_id}` | Inspect one upload job status |
@@ -171,6 +177,7 @@ The React/Vite frontend in `frontend/` includes:
 
 - login and registration backed by the JWT auth API
 - current organization selection from authenticated memberships
+- organization settings with member roles and invitations
 - API readiness panel
 - async document upload with processing status
 - upload job history with filters, retry, and cancel actions

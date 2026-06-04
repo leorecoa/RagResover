@@ -156,6 +156,7 @@ Primary tables are managed through Alembic migrations:
 - `users`: login identities with password hashes.
 - `organizations`: customer/account containers.
 - `organization_memberships`: user-to-organization roles used for tenant access checks.
+- `organization_invitations`: pending, accepted, or revoked invitations for organization membership.
 - `conversations`: reserved for future chat history.
 - `messages`: reserved for future chat messages.
 
@@ -189,6 +190,8 @@ RagResover supports real JWT auth for B2B tenants plus a compatibility MVP token
 - `GET /auth/me`: returns the current user and organization memberships.
 - `Authorization: Bearer <jwt>`: resolves the user and validates `X-Tenant-ID` against memberships.
 - `X-Tenant-ID`: tenant or organization identifier.
+- `/organizations/current`: organization settings, member listing, pending invitations,
+  and MVP role management for `owner`/`admin`.
 - `ALLOW_ANONYMOUS_ACCESS=true`: missing tenant header falls back to `DEFAULT_TENANT_ID`.
 - `ALLOW_ANONYMOUS_ACCESS=false`: missing tenant header returns `401`.
 - `APP_ENV=production` refuses to start unless anonymous access is disabled.
@@ -227,5 +230,6 @@ RagResover supports:
 - Scanned PDFs without embedded text are not OCR-processed yet.
 - Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.
 - Auth has backend users, organizations, memberships, JWTs, frontend login,
-  and current organization selection, but invite flows, tenant API keys, and
-  organization settings screens are not implemented yet.
+  current organization selection, organization settings, invitation records,
+  and MVP role management, but tenant API keys, invite acceptance/email delivery,
+  and full role-by-action permissions are not implemented yet.
