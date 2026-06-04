@@ -191,6 +191,7 @@ RagResover supports real JWT auth for B2B tenants plus a compatibility MVP token
 - `X-Tenant-ID`: tenant or organization identifier.
 - `ALLOW_ANONYMOUS_ACCESS=true`: missing tenant header falls back to `DEFAULT_TENANT_ID`.
 - `ALLOW_ANONYMOUS_ACCESS=false`: missing tenant header returns `401`.
+- `APP_ENV=production` refuses to start unless anonymous access is disabled.
 - `API_AUTH_TOKEN`: optional shared compatibility token. When configured, requests may send `Authorization: Bearer <token>` or `X-API-Key: <token>`.
 - `X-User-ID`: optional actor identifier for audit and role-aware checks.
 - `X-User-Roles`: optional comma-separated actor roles, used by admin-gated operational endpoints.
@@ -225,5 +226,6 @@ RagResover supports:
 - Upload processing has durable Redis queue support, but retry scheduling is still simple and immediate.
 - Scanned PDFs without embedded text are not OCR-processed yet.
 - Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.
-- Auth has backend users, organizations, memberships, and JWTs, but invite flows,
-  tenant API keys, and frontend login/settings screens are not implemented yet.
+- Auth has backend users, organizations, memberships, JWTs, frontend login,
+  and current organization selection, but invite flows, tenant API keys, and
+  organization settings screens are not implemented yet.

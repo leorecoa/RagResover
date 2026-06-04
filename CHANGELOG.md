@@ -8,7 +8,7 @@ All notable changes to RagResover should be documented in this file.
 - PostgreSQL/pgvector persistence for source documents and chunks.
 - MinIO-compatible object storage for uploaded files.
 - OpenAI and Ollama provider support for chat and embeddings.
-- Static frontend for upload, semantic search, and RAG chat demos.
+- React frontend for login, organization selection, upload, semantic search, and RAG chat demos.
 - Docker Compose stack for local development.
 - Repository documentation, security policy, CI, and local check script.
 - Initial Alembic migration environment for versioned database schema management.
@@ -30,3 +30,5 @@ All notable changes to RagResover should be documented in this file.
 - Persistent audit events for upload creation/retry/cancel and document deletion.
 - Optional real database integration tests for pgvector and migrated core tables.
 - JWT auth API with users, organizations, and membership-backed tenant access.
+- Frontend login, registration, saved JWT session validation, and current organization selection.
+- Production config now rejects anonymous access.

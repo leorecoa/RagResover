@@ -27,8 +27,8 @@ npm run serve
 
 Before selling this as a hosted product, add or configure:
 
-- Real authentication and authorization.
-- Hardened user membership checks beyond the MVP tenant header.
+- Configure JWT authentication with anonymous access disabled.
+- Harden authorization beyond the current membership roles where needed.
 - Strong Postgres and MinIO credentials.
 - HTTPS/TLS at the edge.
 - Restricted CORS origins.
@@ -65,8 +65,9 @@ ADMIN_ROLE_NAME=admin
 METRICS_REQUIRE_ADMIN=true
 ```
 
-When `METRICS_REQUIRE_ADMIN=true`, callers must provide a valid API token and
-`X-User-Roles` containing the configured admin role.
+When `METRICS_REQUIRE_ADMIN=true`, callers must provide either a JWT for a
+membership with the configured admin role or the legacy shared token plus
+`X-User-Roles` containing that role.
 
 Run migrations during deploy:
 

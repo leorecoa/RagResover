@@ -42,7 +42,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 - Provider switch between OpenAI and local Ollama
 - Docker Compose stack for local development
 - Alembic migrations for versioned database schema changes
-- React/Vite frontend for demos and manual usage
+- React/Vite frontend with login, organization selection, demos, and manual usage
 
 ## Architecture
 
@@ -157,18 +157,20 @@ Set `RERANKER_PROVIDER=cohere`, `COHERE_API_KEY`, and optionally `COHERE_RERANK_
 
 Upload now stores the raw file in MinIO, returns `202 Accepted` with a `job_id`, and enqueues the job. Poll `GET /uploads/{job_id}` until the status is `completed`, `failed`, or `canceled`; completed jobs include the indexed `document_id`, while failed jobs include attempts and error details. `GET /uploads` supports filters such as `status`, `filename`, `content_type`, date range, `document_id`, `limit`, and `offset`.
 
-Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers. Real auth is available through `/auth/register` and `/auth/login`, which return JWT bearer tokens backed by users, organizations, and memberships. The legacy shared `API_AUTH_TOKEN` and `X-API-Key` path remains available for controlled deployments and compatibility.
+Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` only while `ALLOW_ANONYMOUS_ACCESS=true`; production refuses to start with anonymous access enabled. Real auth is available through `/auth/register` and `/auth/login`, which return JWT bearer tokens backed by users, organizations, and memberships. The React frontend stores the JWT locally, validates saved sessions through `/auth/me`, and sends the selected organization as `X-Tenant-ID`. The legacy shared `API_AUTH_TOKEN` and `X-API-Key` path remains available for controlled deployments and compatibility.
 
 Mutable upload/document actions write best-effort audit events with tenant, optional user, roles, action, resource, and metadata.
 
 Every response includes `X-Request-ID` and `traceparent`. Send your own `X-Request-ID` or W3C `traceparent` to correlate client logs with backend request duration logs and downstream traces.
 
-`GET /metrics` exposes process-local Prometheus-style counters for HTTP requests and duration sums. Set `METRICS_REQUIRE_ADMIN=true` with `API_AUTH_TOKEN` to require `X-User-Roles: admin` for metrics access.
+`GET /metrics` exposes process-local Prometheus-style counters for HTTP requests and duration sums. Set `METRICS_REQUIRE_ADMIN=true` and use either a JWT membership with the configured admin role or the legacy shared token plus `X-User-Roles: admin`.
 
 ## Frontend
 
 The React/Vite frontend in `frontend/` includes:
 
+- login and registration backed by the JWT auth API
+- current organization selection from authenticated memberships
 - API readiness panel
 - async document upload with processing status
 - upload job history with filters, retry, and cancel actions

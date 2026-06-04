@@ -18,6 +18,7 @@ fully managed enterprise product without the production hardening below.
 - Backend pytest suite, frontend Playwright E2E suite, and local check script.
 - Header-based tenant isolation for upload, documents, search, and chat.
 - JWT auth API with users, organizations, and membership-backed tenant access.
+- Frontend login, registration, saved JWT session validation, and current organization selection.
 - MVP API token compatibility via bearer token or `X-API-Key`.
 - Optional user/role headers for role-aware operational checks.
 - Tenant-scoped document management UI and API.
@@ -29,8 +30,9 @@ fully managed enterprise product without the production hardening below.
 
 ## Partially Ready
 
-- Authentication has real backend users, organizations, memberships, and JWTs,
-  but still needs frontend login/settings screens, invites, and tenant API keys.
+- Authentication has real backend users, organizations, memberships, JWTs,
+  frontend login, and organization selection, but still needs organization
+  settings screens, invite flows, and tenant API keys.
 - Tenant isolation is backed by memberships for JWT requests, but Postgres RLS
   and broader attack-test coverage are still production-hardening items.
 - Audit events are persisted, but retention, export, review workflows, and
@@ -46,7 +48,7 @@ fully managed enterprise product without the production hardening below.
 
 ## Still Required For Paid Customers
 
-- Frontend login, organization settings, and invite flows.
+- Organization settings and invite flows.
 - Tenant-scoped API keys.
 - Full RBAC permissions for admin and end-user actions.
 - Rate limiting and abuse protection for upload, search, chat, and management endpoints.
