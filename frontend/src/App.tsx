@@ -19,6 +19,7 @@ import { Chat } from "./pages/Chat";
 import { Dashboard } from "./pages/Dashboard";
 import { Documents } from "./pages/Documents";
 import { LoginPage } from "./pages/Login";
+import { OrganizationPage } from "./pages/Organization";
 import { SearchPage } from "./pages/Search";
 import { Upload } from "./pages/Upload";
 
@@ -42,6 +43,10 @@ const pageCopy: Record<PageKey, { title: string; subtitle: string }> = {
   chat: {
     title: "Chat",
     subtitle: "Respostas RAG com fontes recuperadas.",
+  },
+  organization: {
+    title: "Organization",
+    subtitle: "Settings, membros, convites e RBAC por organizacao.",
   },
 };
 
@@ -339,6 +344,8 @@ export default function App() {
             onDiagnostics={handleDiagnostics}
           />
         );
+      case "organization":
+        return <OrganizationPage {...requestOptions} />;
       default:
         return null;
     }

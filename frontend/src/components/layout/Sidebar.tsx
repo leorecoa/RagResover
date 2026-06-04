@@ -3,6 +3,7 @@ import {
   FileStack,
   FileUp,
   MessageSquareText,
+  Settings,
   Search,
   Sparkles,
 } from "lucide-react";
@@ -10,7 +11,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 
-export type PageKey = "dashboard" | "documents" | "upload" | "search" | "chat";
+export type PageKey = "dashboard" | "documents" | "upload" | "search" | "chat" | "organization";
 
 interface NavItem {
   key: PageKey;
@@ -49,6 +50,12 @@ const navItems: NavItem[] = [
     label: "Chat",
     description: "RAG",
     icon: MessageSquareText,
+  },
+  {
+    key: "organization",
+    label: "Organization",
+    description: "B2B admin",
+    icon: Settings,
   },
 ];
 

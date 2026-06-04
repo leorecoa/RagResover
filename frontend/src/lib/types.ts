@@ -191,6 +191,38 @@ export interface RegisterRequest {
   organization_name: string;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  current_user_role: string;
+}
+
+export interface OrganizationMember {
+  user_id: string;
+  email: string;
+  full_name?: string | null;
+  role: string;
+  created_at: string;
+}
+
+export interface OrganizationMembersResponse {
+  members: OrganizationMember[];
+}
+
+export interface OrganizationInvitation {
+  id: string;
+  organization_id: string;
+  email: string;
+  role: string;
+  invited_by_user_id: string;
+  status: string;
+  created_at: string;
+}
+
+export interface OrganizationInvitationsResponse {
+  invitations: OrganizationInvitation[];
+}
+
 export interface ApiRequestOptions {
   tenantId?: string;
   apiToken?: string;

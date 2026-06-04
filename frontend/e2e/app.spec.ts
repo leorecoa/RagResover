@@ -84,6 +84,113 @@ async function mockAuthApi(page: Page) {
   });
 }
 
+async function mockOrganizationApi(page: Page) {
+  let organizationName = "Acme";
+  let memberRole = "member";
+  const invitation = {
+    id: "invite-1",
+    organization_id: "tenant-alpha",
+    email: "analyst@example.com",
+    role: "viewer",
+    invited_by_user_id: "11111111-1111-1111-1111-111111111111",
+    status: "pending",
+    created_at: "2026-06-04T12:00:00",
+  };
+  let invitations = [invitation];
+
+  await page.route("**/organizations/current", async (route) => {
+    expectTenantHeaders(route.request());
+    const request = route.request();
+    if (request.method() === "PATCH") {
+      const body = request.postDataJSON() as { name: string };
+      organizationName = body.name;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "tenant-alpha",
+        name: organizationName,
+        current_user_role: "owner",
+      }),
+    });
+  });
+
+  await page.route("**/organizations/current/members", async (route) => {
+    expectTenantHeaders(route.request());
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        members: [
+          {
+            user_id: "11111111-1111-1111-1111-111111111111",
+            email: "owner@example.com",
+            full_name: "Owner",
+            role: "owner",
+            created_at: "2026-06-04T12:00:00",
+          },
+          {
+            user_id: "44444444-4444-4444-4444-444444444444",
+            email: "member@example.com",
+            full_name: "Member",
+            role: memberRole,
+            created_at: "2026-06-04T12:05:00",
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/organizations/current/members/44444444-4444-4444-4444-444444444444", async (route) => {
+    expectTenantHeaders(route.request());
+    const body = route.request().postDataJSON() as { role: string };
+    memberRole = body.role;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        members: [
+          {
+            user_id: "44444444-4444-4444-4444-444444444444",
+            email: "member@example.com",
+            full_name: "Member",
+            role: memberRole,
+            created_at: "2026-06-04T12:05:00",
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route("**/organizations/current/invitations", async (route) => {
+    expectTenantHeaders(route.request());
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { email: string; role: string };
+      invitations = [
+        {
+          ...invitation,
+          id: "invite-2",
+          email: body.email,
+          role: body.role,
+        },
+        ...invitations,
+      ];
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(invitations[0]),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ invitations }),
+    });
+  });
+}
+
 async function signIn(page: Page) {
   await page.goto("/");
   await page.getByLabel("Email").fill("owner@example.com");
@@ -116,6 +223,7 @@ function uploadJob(overrides: Record<string, unknown> = {}) {
 test.beforeEach(async ({ page }) => {
   await mockBaseApi(page);
   await mockAuthApi(page);
+  await mockOrganizationApi(page);
 });
 
 test("renders dashboard status and global tenant controls", async ({ page }) => {
@@ -549,4 +657,25 @@ test("asks chat and renders grounded answer with source metadata", async ({ page
     score_threshold: 0.2,
     metadata_filters: { source: "manual.pdf" },
   });
+});
+
+test("manages organization settings, invites and member roles", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: /Organization B2B admin/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Organization" }).first()).toBeVisible();
+  await expect(page.getByLabel("Nome da organizacao")).toHaveValue("Acme");
+
+  await page.getByLabel("Nome da organizacao").fill("Acme Legal");
+  await page.getByRole("button", { name: "Salvar" }).click();
+  await expect(page.getByText("Organizacao atualizada.")).toBeVisible();
+
+  await page.getByLabel("Email do convite").fill("new.member@example.com");
+  await page.getByLabel("Role do convite").selectOption("viewer");
+  await page.getByRole("button", { name: "Convidar" }).click();
+  await expect(page.getByText("Convite criado para new.member@example.com.")).toBeVisible();
+  await expect(page.getByText("new.member@example.com", { exact: true })).toBeVisible();
+
+  await page.getByLabel("Role de member@example.com").selectOption("viewer");
+  await expect(page.getByText("Role atualizado para member@example.com.")).toBeVisible();
 });

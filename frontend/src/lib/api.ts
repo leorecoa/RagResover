@@ -10,6 +10,10 @@ import type {
   AuthTokenResponse,
   AuthUser,
   LoginRequest,
+  Organization,
+  OrganizationInvitation,
+  OrganizationInvitationsResponse,
+  OrganizationMembersResponse,
   ReadyResponse,
   RegisterRequest,
   SearchRequest,
@@ -119,6 +123,82 @@ export function register(payload: RegisterRequest): Promise<AuthTokenResponse> {
 
 export function getMe(options?: ApiRequestOptions): Promise<AuthUser> {
   return requestJson<AuthUser>("/auth/me", undefined, options);
+}
+
+export function getCurrentOrganization(options?: ApiRequestOptions): Promise<Organization> {
+  return requestJson<Organization>("/organizations/current", undefined, options);
+}
+
+export function updateCurrentOrganization(
+  payload: { name: string },
+  options?: ApiRequestOptions,
+): Promise<Organization> {
+  return requestJson<Organization>(
+    "/organizations/current",
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+    options,
+  );
+}
+
+export function listOrganizationMembers(
+  options?: ApiRequestOptions,
+): Promise<OrganizationMembersResponse> {
+  return requestJson<OrganizationMembersResponse>(
+    "/organizations/current/members",
+    undefined,
+    options,
+  );
+}
+
+export function updateOrganizationMemberRole(
+  userId: string,
+  payload: { role: string },
+  options?: ApiRequestOptions,
+): Promise<OrganizationMembersResponse> {
+  return requestJson<OrganizationMembersResponse>(
+    `/organizations/current/members/${userId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+    options,
+  );
+}
+
+export function inviteOrganizationMember(
+  payload: { email: string; role: string },
+  options?: ApiRequestOptions,
+): Promise<OrganizationInvitation> {
+  return requestJson<OrganizationInvitation>(
+    "/organizations/current/invitations",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    },
+    options,
+  );
+}
+
+export function listOrganizationInvitations(
+  options?: ApiRequestOptions,
+): Promise<OrganizationInvitationsResponse> {
+  return requestJson<OrganizationInvitationsResponse>(
+    "/organizations/current/invitations",
+    undefined,
+    options,
+  );
 }
 
 export function uploadDocument(

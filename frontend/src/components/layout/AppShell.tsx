@@ -44,6 +44,7 @@ export function AppShell({
     { key: "upload", label: "Upload" },
     { key: "search", label: "Search" },
     { key: "chat", label: "Chat" },
+    { key: "organization", label: "Org" },
   ];
 
   return (
