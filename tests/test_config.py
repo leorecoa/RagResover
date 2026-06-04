@@ -43,4 +43,17 @@ def test_cohere_reranker_accepts_api_key_and_model():
 
 def test_production_requires_non_default_jwt_secret():
     with pytest.raises(ValidationError, match="JWT_SECRET_KEY"):
-        Settings(APP_ENV="production", JWT_SECRET_KEY="dev-only-change-me")
+        Settings(
+            APP_ENV="production",
+            ALLOW_ANONYMOUS_ACCESS=False,
+            JWT_SECRET_KEY="dev-only-change-me",
+        )
+
+
+def test_production_disables_anonymous_access():
+    with pytest.raises(ValidationError, match="ALLOW_ANONYMOUS_ACCESS"):
+        Settings(
+            APP_ENV="production",
+            ALLOW_ANONYMOUS_ACCESS=True,
+            JWT_SECRET_KEY="production-secret",
+        )

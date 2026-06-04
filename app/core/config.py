@@ -141,6 +141,8 @@ class Settings(BaseSettings):
             raise ValueError("JWT_ACCESS_TOKEN_EXPIRE_MINUTES must be greater than 0")
         if self.PASSWORD_HASH_ITERATIONS < 100_000:
             raise ValueError("PASSWORD_HASH_ITERATIONS must be at least 100000")
+        if self.is_production and self.ALLOW_ANONYMOUS_ACCESS:
+            raise ValueError("ALLOW_ANONYMOUS_ACCESS must be false in production")
         if self.is_production and self.JWT_SECRET_KEY.get_secret_value() == "dev-only-change-me":
             raise ValueError("JWT_SECRET_KEY must be changed in production")
         if self.is_production and "*" in self.cors_origins:
