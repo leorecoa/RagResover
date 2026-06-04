@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     ALLOW_ANONYMOUS_ACCESS: bool = True
     DEFAULT_TENANT_ID: str = "anonymous"
     API_AUTH_TOKEN: SecretStr = SecretStr("")
+    ADMIN_ROLE_NAME: str = "admin"
+    METRICS_REQUIRE_ADMIN: bool = False
 
     STORAGE_ENDPOINT: str = "localhost:9000"
     STORAGE_ACCESS_KEY: str = "minioadmin"
@@ -54,14 +56,15 @@ class Settings(BaseSettings):
     VECTOR_SEARCH_TOP_K: int = 5
     RETRIEVAL_SCORE_THRESHOLD: Optional[float] = None
     RETRIEVAL_FETCH_MULTIPLIER: int = 4
-    RERANKER_PROVIDER: Literal["none"] = "none"
+    RERANKER_PROVIDER: Literal["none", "cohere"] = "none"
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
     ALLOWED_UPLOAD_CONTENT_TYPES: str = (
-        "text/plain,text/markdown,application/json,application/pdf,"
+        "text/plain,text/markdown,text/html,application/xhtml+xml,application/json,application/pdf,"
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
     COHERE_API_KEY: Optional[SecretStr] = None
+    COHERE_RERANK_MODEL: str = "rerank-v4.0-pro"
 
     LANGCHAIN_TRACING_V2: bool = False
     LANGCHAIN_API_KEY: Optional[SecretStr] = None
@@ -121,8 +124,18 @@ class Settings(BaseSettings):
             raise ValueError("INGESTION_WORKER_POLL_TIMEOUT_SECONDS must be greater than 0")
         if self.INGESTION_STALE_JOB_TIMEOUT_SECONDS <= 0:
             raise ValueError("INGESTION_STALE_JOB_TIMEOUT_SECONDS must be greater than 0")
+        if self.RERANKER_PROVIDER == "cohere" and not (
+            self.COHERE_API_KEY and self.COHERE_API_KEY.get_secret_value().strip()
+        ):
+            raise ValueError("COHERE_API_KEY must be configured when RERANKER_PROVIDER=cohere")
+        if not self.COHERE_RERANK_MODEL.strip():
+            raise ValueError("COHERE_RERANK_MODEL must not be empty")
         if not self.DEFAULT_TENANT_ID.strip():
             raise ValueError("DEFAULT_TENANT_ID must not be empty")
+        if not self.ADMIN_ROLE_NAME.strip():
+            raise ValueError("ADMIN_ROLE_NAME must not be empty")
+        if self.METRICS_REQUIRE_ADMIN and not self.has_api_auth_token:
+            raise ValueError("API_AUTH_TOKEN must be configured when METRICS_REQUIRE_ADMIN=true")
         if self.is_production and "*" in self.cors_origins:
             raise ValueError("CORS_ALLOW_ORIGINS cannot contain '*' in production")
         return self

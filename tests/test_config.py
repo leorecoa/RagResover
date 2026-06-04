@@ -23,3 +23,24 @@ def test_chunk_overlap_must_be_smaller_than_chunk_size():
 def test_production_cors_cannot_allow_wildcard():
     with pytest.raises(ValidationError):
         Settings(APP_ENV="production", CORS_ALLOW_ORIGINS="*")
+
+
+def test_cohere_reranker_requires_api_key():
+    with pytest.raises(ValidationError, match="COHERE_API_KEY"):
+        Settings(RERANKER_PROVIDER="cohere", COHERE_API_KEY="")
+
+
+def test_cohere_reranker_accepts_api_key_and_model():
+    settings = Settings(
+        RERANKER_PROVIDER="cohere",
+        COHERE_API_KEY="cohere-key",
+        COHERE_RERANK_MODEL="rerank-v4.0-pro",
+    )
+
+    assert settings.RERANKER_PROVIDER == "cohere"
+    assert settings.COHERE_RERANK_MODEL == "rerank-v4.0-pro"
+
+
+def test_metrics_admin_protection_requires_api_token():
+    with pytest.raises(ValidationError, match="API_AUTH_TOKEN"):
+        Settings(METRICS_REQUIRE_ADMIN=True, API_AUTH_TOKEN="")
