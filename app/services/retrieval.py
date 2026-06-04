@@ -1,5 +1,7 @@
-from dataclasses import dataclass
-from typing import Protocol
+from dataclasses import dataclass, replace
+from typing import Callable, Protocol
+
+import httpx
 
 from app.core.config import settings
 from app.repositories.documents import DocumentRepository, SearchResult
@@ -66,9 +68,112 @@ class NoOpReranker:
         return results[:limit]
 
 
+class CohereReranker:
+    provider_name = "cohere"
+    is_enabled = True
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        client_factory: Callable[[], httpx.AsyncClient] | None = None,
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.client_factory = client_factory or self._default_client_factory
+
+    def _default_client_factory(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            base_url="https://api.cohere.com",
+            timeout=30.0,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+
+    async def rerank(
+        self,
+        *,
+        query: str,
+        results: list[SearchResult],
+        limit: int,
+    ) -> list[SearchResult]:
+        if not results:
+            return []
+
+        documents = [result.content for result in results]
+        try:
+            async with self.client_factory() as client:
+                response = await client.post(
+                    "/v2/rerank",
+                    json={
+                        "model": self.model,
+                        "query": query,
+                        "documents": documents,
+                        "top_n": min(limit, len(documents)),
+                    },
+                )
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise RuntimeError("Cohere reranker unavailable.") from exc
+
+        payload = response.json()
+        ranked_items = payload.get("results")
+        if not isinstance(ranked_items, list):
+            raise RuntimeError("Cohere reranker response did not include results.")
+
+        reranked: list[SearchResult] = []
+        seen_indexes: set[int] = set()
+        for item in ranked_items:
+            if not isinstance(item, dict):
+                continue
+            index = item.get("index")
+            relevance_score = item.get("relevance_score")
+            if not isinstance(index, int) or index < 0 or index >= len(results):
+                continue
+            seen_indexes.add(index)
+            score = (
+                float(relevance_score)
+                if isinstance(relevance_score, int | float)
+                else results[index].score
+            )
+            reranked.append(replace(results[index], score=score))
+
+        if len(reranked) < limit:
+            reranked.extend(
+                result
+                for index, result in enumerate(results)
+                if index not in seen_indexes
+            )
+
+        return reranked[:limit]
+
+
+def create_reranker() -> Reranker:
+    if settings.RERANKER_PROVIDER == "none":
+        return NoOpReranker()
+
+    if settings.RERANKER_PROVIDER == "cohere":
+        api_key = (
+            settings.COHERE_API_KEY.get_secret_value().strip()
+            if settings.COHERE_API_KEY
+            else ""
+        )
+        if not api_key:
+            raise RuntimeError("COHERE_API_KEY must be configured when RERANKER_PROVIDER=cohere")
+        return CohereReranker(
+            api_key=api_key,
+            model=settings.COHERE_RERANK_MODEL,
+        )
+
+    raise RuntimeError(f"Unsupported reranker provider: {settings.RERANKER_PROVIDER}")
+
+
 class RetrievalService:
     def __init__(self, reranker: Reranker | None = None):
-        self.reranker = reranker or NoOpReranker()
+        self.reranker = reranker or create_reranker()
 
     async def retrieve(
         self,

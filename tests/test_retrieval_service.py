@@ -4,7 +4,7 @@ import anyio
 
 import app.services.retrieval as retrieval_module
 from app.repositories.documents import SearchResult
-from app.services.retrieval import RetrievalService
+from app.services.retrieval import CohereReranker, RetrievalService, create_reranker
 
 
 class FakeRepository:
@@ -44,6 +44,33 @@ class FakeReranker:
 
     async def rerank(self, *, query, results, limit):
         return sorted(results, key=lambda item: item.score, reverse=True)[:limit]
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.payload
+
+
+class FakeCohereClient:
+    def __init__(self, payload):
+        self.payload = payload
+        self.requests = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return None
+
+    async def post(self, path, json):
+        self.requests.append({"path": path, "json": json})
+        return FakeResponse(self.payload)
 
 
 def make_result(index: int, score: float) -> SearchResult:
@@ -138,3 +165,62 @@ def test_retrieval_service_reranker_interface_can_reorder_results(monkeypatch):
     assert result.diagnostics.as_dict()["tenant_id"] == "tenant-a"
     assert result.diagnostics.as_dict()["reranker_provider"] == "fake"
     assert result.diagnostics.as_dict()["reranker_applied"] is True
+
+
+def test_create_reranker_uses_cohere_provider(monkeypatch):
+    monkeypatch.setattr(retrieval_module.settings, "RERANKER_PROVIDER", "cohere")
+    monkeypatch.setattr(retrieval_module.settings, "COHERE_RERANK_MODEL", "rerank-v4.0-pro")
+    monkeypatch.setattr(
+        retrieval_module.settings,
+        "COHERE_API_KEY",
+        type("FakeSecret", (), {"get_secret_value": lambda self: "cohere-key"})(),
+    )
+
+    reranker = create_reranker()
+
+    assert isinstance(reranker, CohereReranker)
+    assert reranker.provider_name == "cohere"
+    assert reranker.is_enabled is True
+
+
+def test_cohere_reranker_reorders_results_and_uses_relevance_score():
+    fake_client = FakeCohereClient(
+        {
+            "results": [
+                {"index": 2, "relevance_score": 0.99},
+                {"index": 0, "relevance_score": 0.72},
+            ]
+        }
+    )
+    reranker = CohereReranker(
+        api_key="cohere-key",
+        model="rerank-v4.0-pro",
+        client_factory=lambda: fake_client,
+    )
+    results = [make_result(1, 0.2), make_result(2, 0.6), make_result(3, 0.4)]
+
+    async def call_reranker():
+        return await reranker.rerank(
+            query="manual",
+            results=results,
+            limit=2,
+        )
+
+    reranked = anyio.run(call_reranker)
+
+    assert [item.chunk_id for item in reranked] == [
+        results[2].chunk_id,
+        results[0].chunk_id,
+    ]
+    assert [item.score for item in reranked] == [0.99, 0.72]
+    assert fake_client.requests == [
+        {
+            "path": "/v2/rerank",
+            "json": {
+                "model": "rerank-v4.0-pro",
+                "query": "manual",
+                "documents": ["content-1", "content-2", "content-3"],
+                "top_n": 2,
+            },
+        }
+    ]

@@ -17,7 +17,7 @@
 
 ## Retrieval Quality
 
-- Add real Cohere reranking implementation behind the reranker interface.
+- Add retrieval quality evaluation datasets and scoring for reranked results.
 - Add hybrid search with keyword + vector retrieval.
 - Add richer retrieval evaluation fixtures.
 
