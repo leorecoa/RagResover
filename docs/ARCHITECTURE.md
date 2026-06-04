@@ -22,7 +22,7 @@ app/api/routes
   HTTP endpoints. Keep these thin.
 
 app/api/dependencies
-  Request dependencies such as tenant authentication.
+  Request dependencies such as JWT, tenant, and membership authentication.
 
 app/api/schemas
   Pydantic request and response contracts.
@@ -153,6 +153,9 @@ Primary tables are managed through Alembic migrations:
 - `document_chunks`: one row per chunk with optional vector embedding.
 - `ingestion_jobs`: one row per async upload request, raw file path, attempts, max attempts, timing, and processing status.
 - `audit_events`: best-effort audit trail for mutable upload and document operations.
+- `users`: login identities with password hashes.
+- `organizations`: customer/account containers.
+- `organization_memberships`: user-to-organization roles used for tenant access checks.
 - `conversations`: reserved for future chat history.
 - `messages`: reserved for future chat messages.
 
@@ -179,12 +182,16 @@ The worker marks stale `processing` jobs as `failed` so stuck work is visible. M
 
 ## Authentication
 
-The MVP uses header-based tenant auth:
+RagResover supports real JWT auth for B2B tenants plus a compatibility MVP token path:
 
+- `POST /auth/register`: creates a user, organization, owner membership, and JWT.
+- `POST /auth/login`: validates email/password and returns a JWT.
+- `GET /auth/me`: returns the current user and organization memberships.
+- `Authorization: Bearer <jwt>`: resolves the user and validates `X-Tenant-ID` against memberships.
 - `X-Tenant-ID`: tenant or organization identifier.
 - `ALLOW_ANONYMOUS_ACCESS=true`: missing tenant header falls back to `DEFAULT_TENANT_ID`.
 - `ALLOW_ANONYMOUS_ACCESS=false`: missing tenant header returns `401`.
-- `API_AUTH_TOKEN`: optional shared token. When configured, requests must send `Authorization: Bearer <token>` or `X-API-Key: <token>`.
+- `API_AUTH_TOKEN`: optional shared compatibility token. When configured, requests may send `Authorization: Bearer <token>` or `X-API-Key: <token>`.
 - `X-User-ID`: optional actor identifier for audit and role-aware checks.
 - `X-User-Roles`: optional comma-separated actor roles, used by admin-gated operational endpoints.
 
@@ -218,4 +225,5 @@ RagResover supports:
 - Upload processing has durable Redis queue support, but retry scheduling is still simple and immediate.
 - Scanned PDFs without embedded text are not OCR-processed yet.
 - Reindexing is not implemented yet; the planned route is `POST /documents/{document_id}/reindex`.
-- Authentication is MVP header/token based, not full user account management yet.
+- Auth has backend users, organizations, memberships, and JWTs, but invite flows,
+  tenant API keys, and frontend login/settings screens are not implemented yet.

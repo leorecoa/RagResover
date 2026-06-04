@@ -59,5 +59,6 @@ alembic upgrade head
 The local `scripts/check.ps1` validates both offline upgrade SQL and offline
 downgrade SQL generation.
 
-Audit events are stored in `audit_events` and are created by Alembic migrations,
-not by bootstrap SQL.
+Audit events and identity tables (`users`, `organizations`, and
+`organization_memberships`) are created by Alembic migrations, not by bootstrap
+SQL.

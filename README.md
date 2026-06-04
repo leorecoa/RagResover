@@ -36,6 +36,7 @@ It combines FastAPI, PostgreSQL/pgvector, MinIO, Ollama/OpenAI providers, and a 
 - Retrieval controls with score threshold and metadata filters
 - Optional Cohere reranking for retrieved candidates
 - Header-based tenant isolation for upload, search, and chat
+- JWT auth API with users, organizations, and membership-backed tenant access
 - Persistent audit events for mutable upload and document operations
 - RAG chat with retrieved sources
 - Provider switch between OpenAI and local Ollama
@@ -133,6 +134,9 @@ Full walkthrough: [docs/DEMO.md](docs/DEMO.md).
 | GET | `/health` | Lightweight liveness check |
 | GET | `/ready` | Dependency readiness check |
 | GET | `/metrics` | Prometheus-style request counters and duration sums |
+| POST | `/auth/register` | Create a user, organization, owner membership, and JWT |
+| POST | `/auth/login` | Authenticate with email/password and return JWT |
+| GET | `/auth/me` | Inspect the current JWT identity and memberships |
 | POST | `/upload` | Create an async upload processing job |
 | GET | `/uploads` | List upload jobs for the current tenant |
 | GET | `/uploads/{job_id}` | Inspect one upload job status |
@@ -153,7 +157,7 @@ Set `RERANKER_PROVIDER=cohere`, `COHERE_API_KEY`, and optionally `COHERE_RERANK_
 
 Upload now stores the raw file in MinIO, returns `202 Accepted` with a `job_id`, and enqueues the job. Poll `GET /uploads/{job_id}` until the status is `completed`, `failed`, or `canceled`; completed jobs include the indexed `document_id`, while failed jobs include attempts and error details. `GET /uploads` supports filters such as `status`, `filename`, `content_type`, date range, `document_id`, `limit`, and `offset`.
 
-Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers, and set `API_AUTH_TOKEN` to require `Authorization: Bearer ...` or `X-API-Key`. Requests can also send `X-User-ID` and comma-separated `X-User-Roles` for role-aware administrative checks.
+Upload, upload status, documents, search, and chat accept `X-Tenant-ID` to isolate data by tenant. Anonymous access uses `DEFAULT_TENANT_ID` while `ALLOW_ANONYMOUS_ACCESS=true`; set `ALLOW_ANONYMOUS_ACCESS=false` to require tenant headers. Real auth is available through `/auth/register` and `/auth/login`, which return JWT bearer tokens backed by users, organizations, and memberships. The legacy shared `API_AUTH_TOKEN` and `X-API-Key` path remains available for controlled deployments and compatibility.
 
 Mutable upload/document actions write best-effort audit events with tenant, optional user, roles, action, resource, and metadata.
 

@@ -24,6 +24,7 @@ Before production:
 - disable debug mode
 - disable anonymous access
 - configure a strong API auth token or replace the MVP auth layer
+- configure a strong `JWT_SECRET_KEY` and disable anonymous access
 - require admin role headers for operational endpoints such as `/metrics`
 - restrict CORS
 - enable authentication

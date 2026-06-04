@@ -29,3 +29,4 @@ All notable changes to RagResover should be documented in this file.
 - Request middleware now emits and propagates W3C `traceparent` headers for downstream tracing.
 - Persistent audit events for upload creation/retry/cancel and document deletion.
 - Optional real database integration tests for pgvector and migrated core tables.
+- JWT auth API with users, organizations, and membership-backed tenant access.

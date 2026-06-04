@@ -17,7 +17,8 @@ fully managed enterprise product without the production hardening below.
 - Alembic migrations with offline upgrade and downgrade SQL checks.
 - Backend pytest suite, frontend Playwright E2E suite, and local check script.
 - Header-based tenant isolation for upload, documents, search, and chat.
-- MVP API token support via bearer token or `X-API-Key`.
+- JWT auth API with users, organizations, and membership-backed tenant access.
+- MVP API token compatibility via bearer token or `X-API-Key`.
 - Optional user/role headers for role-aware operational checks.
 - Tenant-scoped document management UI and API.
 - Retrieval controls with score threshold, metadata filters, diagnostics, and optional Cohere reranking.
@@ -28,10 +29,10 @@ fully managed enterprise product without the production hardening below.
 
 ## Partially Ready
 
-- Authentication is usable for MVP demos, but it is header/token based rather
-  than real user account management.
-- Tenant isolation exists at the API/repository level, but customer membership
-  validation is not backed by a users/organizations model yet.
+- Authentication has real backend users, organizations, memberships, and JWTs,
+  but still needs frontend login/settings screens, invites, and tenant API keys.
+- Tenant isolation is backed by memberships for JWT requests, but Postgres RLS
+  and broader attack-test coverage are still production-hardening items.
 - Audit events are persisted, but retention, export, review workflows, and
   compliance policy still need product decisions.
 - Cohere reranking is implemented, but retrieval quality still needs evaluation
@@ -45,9 +46,9 @@ fully managed enterprise product without the production hardening below.
 
 ## Still Required For Paid Customers
 
-- Real user accounts and login flow.
-- Organization membership validation.
-- RBAC permissions for admin and end-user actions.
+- Frontend login, organization settings, and invite flows.
+- Tenant-scoped API keys.
+- Full RBAC permissions for admin and end-user actions.
 - Rate limiting and abuse protection for upload, search, chat, and management endpoints.
 - OCR for scanned PDFs.
 - Hybrid lexical + vector search.

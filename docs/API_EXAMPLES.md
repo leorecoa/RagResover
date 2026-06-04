@@ -41,6 +41,49 @@ Invoke-RestMethod http://localhost:8000/metrics `
 All API responses include `X-Request-ID` and `traceparent` headers. Clients may
 send their own values to correlate request logs and distributed traces.
 
+## Auth
+
+Register a first user and organization:
+
+```powershell
+$body = @{
+  email = "owner@example.com"
+  password = "change-this-password"
+  full_name = "Owner User"
+  organization_name = "Acme Legal"
+} | ConvertTo-Json
+
+Invoke-RestMethod http://localhost:8000/auth/register `
+  -Method Post `
+  -Body $body `
+  -ContentType "application/json"
+```
+
+Login:
+
+```powershell
+$body = @{
+  email = "owner@example.com"
+  password = "change-this-password"
+} | ConvertTo-Json
+
+$login = Invoke-RestMethod http://localhost:8000/auth/login `
+  -Method Post `
+  -Body $body `
+  -ContentType "application/json"
+```
+
+Use the returned JWT and organization ID for tenant-scoped APIs:
+
+```powershell
+$headers = @{
+  "Authorization" = "Bearer $($login.access_token)"
+  "X-Tenant-ID" = $login.user.organizations[0].organization_id
+}
+
+Invoke-RestMethod http://localhost:8000/auth/me -Headers $headers
+```
+
 ## Upload
 
 ```powershell

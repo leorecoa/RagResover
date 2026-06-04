@@ -42,7 +42,8 @@
 - [ ] Evoluir frontend para Next.js/React se precisar de estado mais complexo
 - [x] Adicionar contexto MVP de usuario/roles e gate admin para metricas
 - [x] Adicionar auditoria persistente para upload e documentos
-- [ ] Endurecer auth com usuarios reais e memberships
+- [x] Adicionar backend auth real com JWT, usuarios, organizacoes e memberships
+- [ ] Adicionar UI de login/organizacao, convites, API keys por tenant e RBAC completo
 - [x] Adicionar request id, logs de duracao por request e endpoint `/metrics`
 - [x] Adicionar propagacao W3C `traceparent` para traces distribuidos opcionais
 
